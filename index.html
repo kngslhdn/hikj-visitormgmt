@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="id">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    :root { --navy:#0f1c2e; --blue:#132640; --green:#25d366; --line:rgba(255,255,255,.23); --danger:#ff8b8b; }
+    :root { --navy:#0f1c2e; --blue:#132640; --green:#25d366; --line:rgba(255,255,255,.23); }
     * { box-sizing:border-box; font-family:Poppins,Arial,sans-serif; }
     body { margin:0; min-height:100vh; color:#fff; background:linear-gradient(160deg,var(--navy),var(--blue) 55%,var(--navy)); }
     .shell { width:min(960px,calc(100% - 28px)); margin:0 auto; padding:34px 0 56px; }
@@ -37,274 +37,82 @@
     input[type=file] { border:1px dashed var(--line); border-radius:10px; padding:10px; }
     .submit { width:100%; border:0; border-radius:12px; padding:14px; background:var(--green); color:#fff; font-weight:700; font-size:.92rem; cursor:pointer; }
     .submit:disabled { opacity:.55; cursor:wait; }
-    .notice { padding:0 22px 20px; color:#c7f9d8; font-size:.8rem; min-height:24px; line-height:1.5; }
-    .notice.error { color:var(--danger); }
-    .success { padding:26px 22px 22px; }
-    .success h3 { margin:0 0 8px; font-size:1.15rem; }
-    .success p { margin:5px 0; opacity:.82; font-size:.84rem; }
-    .success-id { margin:16px 0; padding:12px; border:1px solid var(--line); border-radius:10px; text-align:center; font-weight:600; letter-spacing:.03em; }
-    .actions { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:18px; }
-    .action { display:inline-flex; justify-content:center; align-items:center; min-height:48px; padding:12px 14px; border-radius:12px; text-decoration:none; font-weight:700; font-size:.84rem; cursor:pointer; border:1px solid var(--line); }
-    .action.whatsapp { background:var(--green); color:#fff; border-color:transparent; }
-    .action.home { background:transparent; color:#fff; }
+    .notice { padding:0 22px 20px; color:#c7f9d8; font-size:.8rem; min-height:24px; }
     .privacy { margin:22px auto 0; max-width:580px; text-align:center; opacity:.65; font-size:.72rem; line-height:1.5; }
-    .hint { margin-top:10px; font-size:.72rem; opacity:.65; text-align:center; }
-    @media (max-width:480px) {
-      .shell { width:min(100% - 20px,960px); padding-top:24px; }
-      .choices { grid-template-columns:1fr 1fr; gap:9px; }
-      .choice { min-height:106px; padding:14px; }
-      form { padding:18px; }
-      .actions { grid-template-columns:1fr; }
-    }
+    @media (max-width:480px) { .shell { width:min(100% - 20px,960px); padding-top:24px; } .choices { grid-template-columns:1fr 1fr; gap:9px; } .choice { min-height:106px; padding:14px; } form { padding:18px; } }
   </style>
 </head>
 <body>
   <main class="shell">
     <header>
       <h1>HIKJ Visitor Management</h1>
-      <p>Pilih kebutuhan Anda. Formulir akan terbuka di halaman ini—tidak perlu mencari tautan terpisah.</p>
+      <p>Select the service you need. The form will open on this page—no separate link required.</p>
     </header>
-    <section id="choices" class="choices" aria-label="Pilih formulir"></section>
+    <section id="choices" class="choices" aria-label="Select a form"></section>
     <section id="panel" class="panel" aria-live="polite"></section>
-    <p class="privacy">Data formulir akan disimpan ke sistem operasional. WhatsApp digunakan melalui Click-to-Chat gratis dan tidak memakai API WhatsApp.</p>
+    <p class="privacy">Submitted data will be forwarded to WhatsApp and/or the operational Google Sheet according to the selected form.</p>
   </main>
   <iframe name="submission_target" hidden></iframe>
   <script>
     const WA_NUMBER = '6281314414955';
-    const locations = ['Receiving','Purchasing','Grand Ball Room','Bali Room','Ramayana Terrace','Heritage 1','Heritage 2','Cendana + Eboni','Palapi + Jati','Damar + Angsana','Mahoni + Ulin','Business Center','Signature Restaurant','Paulaner Restaurant','Oku Restaurant','Executive Lounge','President Suite Room 832','Room','Lainnya'];
-
+    const locations = ['Receiving','Purchasing','Grand Ball Room','Bali Room','Ramayana Terrace','Heritage 1','Heritage 2','Cendana + Eboni','Palapi + Jati','Damar + Angsana','Mahoni + Ulin','Business Center','Signature Restaurant','Paulaner Restaurant','Oku Restaurant','Executive Lounge','President Suite Room 832','Room','Other'];
     const forms = {
-      masuk: {
-        title:'Registrasi Masuk',
-        description:'Lengkapi data sebelum memasuki area Hotel Indonesia Kempinski Jakarta.',
-        endpoint:'https://script.google.com/macros/s/AKfycbyvW7tRgTGBJH249C-VUMCdqtfjmBcayViSu8wUhB3RyPWOHrVbmPMza67hMNR2EDJ9Mw/exec',
-        fields:[
-          ['nama','Nama'],['phone','No. Handphone','tel'],['perusahaan','Nama Perusahaan / Vendor'],['kategori','Kategori','select',['Kontraktor','Supplier','Visitor','Parttime']],['lokasi','Lokasi Kerja','select',locations],['tujuan','Tujuan','textarea'],['security','Nama Security'],['pass','Nomor Pass / Rompi'],['datetime','Tanggal & Jam Masuk','datetime']
-        ]
-      },
-      keluar: {
-        title:'Registrasi Keluar',
-        description:'Lengkapi data sebelum keluar dari area Hotel Indonesia Kempinski Jakarta.',
-        endpoint:'https://script.google.com/macros/s/AKfycby47gQyNqiqBKOjclIibO5FPzpdm7KUcA50NMM_d3n3PYAN4P7CT16QwXuQ5vHjZb-b/exec',
-        fields:[
-          ['nama','Nama'],['perusahaan','Nama Perusahaan / Vendor'],['pass','Nomor Pass / Rompi'],['security','Nama Security'],['datetime','Tanggal & Jam Keluar','datetime']
-        ]
-      },
-      paket: {
-        title:'Registrasi Paket',
-        description:'Catat pengantaran paket dan foto barang.',
-        endpoint:'https://script.google.com/macros/s/AKfycby4LnxzJ-c_n4spkv8Inw-zpFZR-D4y6G50E3JR68aDX_mLdEctXgVhBTboqXSvhaNf/exec',
-        upload:true,
-        fields:[
-          ['namaPengantar','Nama Pengantar'],['telepon','Nomor Telepon','tel'],['perusahaan','Nama Perusahaan'],['jenisBarang','Jenis Barang','select',['SURAT','PAKET']],['jumlah','Jumlah Barang'],['tujuan','Tujuan','select',['STAFF','TAMU']],['namaTujuan','Nama Tujuan'],['security','Nama Security'],['foto','Foto Barang','file']
-        ]
-      },
-      pinjamKunci: {
-        title:'Key Borrowing',
-        description:'Complete this form before borrowing keys.',
-        endpoint:'https://script.google.com/macros/s/AKfycbxjT966V0gzzTTyY48v4oUjDzaZ1oniT6UYC6DOYbBoTvR6gtxXg_Xb7cfYDJTebTQtAQ/exec',
-        fields:[
-          ['borrowerName','Borrower Name'],['department','Department'],['keyNumber','Key Number'],['description','Key Description','textarea'],['qty','Quantity of Keys'],['security','Security Officer In Charge'],['datetime','Date & Time Borrowed','datetime']
-        ]
-      },
-      kembaliKunci: {
-        title:'Key Return',
-        description:'Complete this form after returning keys.',
-        endpoint:'https://script.google.com/macros/s/AKfycbw9O6noEzFPKKybzcFFdRi2ykDY4xTNwSThJm7wqqNWqBMTxHXesHyk24xrf9XAmzOEDw/exec',
-        fields:[
-          ['returnName','Return Name'],['department','Department'],['keyNumber','Key Number'],['description','Key Description','textarea'],['qty','Quantity of Keys'],['security','Security Officer In Charge'],['datetime','Date & Time Returned','datetime']
-        ]
-      }
+      masuk: { title:'Visitor Entry Registration', description:'Please complete the information before entering Hotel Indonesia Kempinski Jakarta.', endpoint:'https://script.google.com/macros/s/AKfycbyvW7tRgTGBJH249C-VUMCdqtfjmBcayViSu8wUhB3RyPWOHrVbmPMza67hMNR2EDJ9Mw/exec', fields:[
+        ['nama','Name'],['phone','Mobile Phone Number','tel'],['perusahaan','Company / Vendor Name'],['kategori','Category','select',['Contractor','Supplier','Visitor','Part-time']],['lokasi','Work Location','select',locations],['tujuan','Purpose','textarea'],['security','Security Officer Name'],['pass','Pass / Vest Number'],['datetime','Entry Date & Time','datetime']
+      ]},
+      keluar: { title:'Visitor Exit Registration', description:'Please complete the information before leaving Hotel Indonesia Kempinski Jakarta.', endpoint:'https://script.google.com/macros/s/AKfycby47gQyNqiqBKOjclIibO5FPzpdm7KUcA50NMM_d3n3PYAN4P7CT16QwXuQ5vHjZb-b/exec', fields:[
+        ['nama','Name'],['perusahaan','Company / Vendor Name'],['pass','Pass / Vest Number'],['security','Security Officer Name'],['datetime','Exit Date & Time','datetime']
+      ]},
+      paket: { title:'Package Registration', description:'Record the package delivery and item photo.', endpoint:'https://script.google.com/macros/s/AKfycby4LnxzJ-c_n4spkv8Inw-zpFZR-D4y6G50E3JR68aDX_mLdEctXgVhBTboqXSvhaNf/exec', upload:true, fields:[
+        ['namaPengantar','Courier Name'],['telepon','Phone Number','tel'],['perusahaan','Company Name'],['jenisBarang','Item Type','select',['LETTER','PACKAGE']],['jumlah','Number of Items'],['tujuan','Purpose','select',['STAFF','GUEST']],['namaTujuan','Recipient Name'],['security','Security Officer Name'],['foto','Item Photo','file']
+      ]},
+      pinjamKunci: { title:'Key Borrowing', description:'Complete this form before borrowing keys.', endpoint:'https://script.google.com/macros/s/AKfycbxjT966V0gzzTTyY48v4oUjDzaZ1oniT6UYC6DOYbBoTvR6gtxXg_Xb7cfYDJTebTQtAQ/exec', fields:[
+        ['borrowerName','Borrower Name'],['department','Department'],['keyNumber','Key Number'],['description','Key Description','textarea'],['qty','Quantity of Keys'],['security','Security Officer In Charge'],['datetime','Date & Time Borrowed','datetime']
+      ]},
+      kembaliKunci: { title:'Key Return', description:'Complete this form after returning keys.', endpoint:'https://script.google.com/macros/s/AKfycbw9O6noEzFPKKybzcFFdRi2ykDY4xTNwSThJm7wqqNWqBMTxHXesHyk24xrf9XAmzOEDw/exec', fields:[
+        ['returnName','Return Name'],['department','Department'],['keyNumber','Key Number'],['description','Key Description','textarea'],['qty','Quantity of Keys'],['security','Security Officer In Charge'],['datetime','Date & Time Returned','datetime']
+      ]}
     };
-
     const choiceRoot = document.querySelector('#choices');
     const panel = document.querySelector('#panel');
-    let activeKey = null;
-    let lastSubmission = null;
-
-    const dateText = () => {
-      const now = new Date();
-      return now.toLocaleDateString('id-ID') + ' ' + now.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
-    };
-
-    const normalizePhone = value => {
-      let phone = String(value || '').replace(/[^0-9+]/g,'');
-      if (phone.startsWith('+62')) phone = '62' + phone.slice(3);
-      else if (phone.startsWith('62')) phone = phone;
-      else if (phone.startsWith('0')) phone = '62' + phone.slice(1);
-      return phone;
-    };
-
-    const escapeHtml = value => String(value ?? '')
-      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-      .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
-
+    const dateText = () => new Date().toLocaleDateString('en-GB') + ' ' + new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+    const formatMessage = (title, data) => title.toUpperCase() + '\n\n' + [...data.entries()].filter(([key]) => key !== 'foto' && key !== 'datetime').map(([key,value]) => `${document.querySelector(`[name="${key}"]`)?.closest('.field')?.querySelector('label')?.textContent || key}: ${value}`).join('\n') + (data.get('datetime') ? `\n${document.querySelector('[name="datetime"]')?.closest('.field')?.querySelector('label')?.textContent}: ${data.get('datetime')}` : '');
     function inputMarkup([name,label,type='text',options=[]]) {
       if (type === 'textarea') return `<div class="field"><label for="${name}">${label}</label><textarea id="${name}" name="${name}" required></textarea></div>`;
-      if (type === 'select') return `<div class="field"><label for="${name}">${label}</label><select id="${name}" name="${name}" required><option value="">Pilih</option>${options.map(x=>`<option value="${escapeHtml(x)}">${escapeHtml(x)}</option>`).join('')}</select></div>`;
-      if (type === 'datetime') return `<div class="field"><label for="${name}">${label}</label><input id="${name}" name="${name}" readonly value="${escapeHtml(dateText())}"></div>`;
+      if (type === 'select') return `<div class="field"><label for="${name}">${label}</label><select id="${name}" name="${name}" required><option value="">Select</option>${options.map(x=>`<option>${x}</option>`).join('')}</select></div>`;
+      if (type === 'datetime') return `<div class="field"><label for="${name}">${label}</label><input id="${name}" name="${name}" readonly value="${dateText()}"></div>`;
       if (type === 'file') return `<div class="field"><label for="${name}">${label}</label><input id="${name}" name="${name}" type="file" accept="image/*" required></div>`;
       return `<div class="field"><label for="${name}">${label}</label><input id="${name}" name="${name}" type="${type}" required></div>`;
     }
-
-    function formatMessage(title, data) {
-      const lines = [
-        'HIKJ VISITOR MANAGEMENT',
-        '',
-        `NEW ${title.toUpperCase()}`,
-        ''
-      ];
-
-      for (const [key,value] of data.entries()) {
-        if (key === 'foto') continue;
-        const field = document.querySelector(`[name="${CSS.escape(key)}"]`);
-        const label = field?.closest('.field')?.querySelector('label')?.textContent || key;
-        lines.push(`${label}: ${value}`);
-      }
-
-      if (lastSubmission?.submissionId) {
-        lines.push('', `Submission ID: ${lastSubmission.submissionId}`);
-      }
-
-      return lines.join('\n');
-    }
-
-    function generateSubmissionId() {
-      const now = new Date();
-      const date = now.toISOString().slice(0,10).replaceAll('-','');
-      const random = Math.floor(100000 + Math.random() * 900000);
-      return `VIS-${date}-${random}`;
-    }
-
-    async function readFileAsDataURL(file) {
-      if (!file) return '';
-      return await new Promise((resolve,reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-    }
-
-    async function submitToEndpoint(form, data) {
-      if (form.upload) {
-        const file = data.get('foto');
-        const payload = Object.fromEntries(data.entries());
-        payload.foto = await readFileAsDataURL(file);
-        const response = await fetch(form.endpoint, {
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body:JSON.stringify(payload)
-        });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        return;
-      }
-
-      const relay = document.createElement('form');
-      relay.method = 'POST';
-      relay.action = form.endpoint;
-      relay.target = 'submission_target';
-      relay.hidden = true;
-
-      for (const [name,value] of data.entries()) {
-        const input = document.createElement('input');
-        input.name = name;
-        input.value = value;
-        relay.appendChild(input);
-      }
-
-      document.body.appendChild(relay);
-      relay.submit();
-      relay.remove();
-    }
-
-    function showSuccess(key, data) {
-      const form = forms[key];
-      const submissionId = generateSubmissionId();
-      lastSubmission = { key, submissionId, data };
-      const message = formatMessage(form.title, data);
-      const waUrl = `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(message)}`;
-
-      panel.innerHTML = `
-        <div class="success">
-          <h3>Registration Successful</h3>
-          <p>Data ${escapeHtml(form.title)} berhasil disimpan ke sistem operasional.</p>
-          <div class="success-id">${escapeHtml(submissionId)}</div>
-          <p>Gunakan tombol di bawah untuk membuka WhatsApp dengan pesan yang sudah disiapkan.</p>
-          <div class="actions">
-            <a class="action whatsapp" href="${waUrl}" target="_blank" rel="noopener">SEND TO WHATSAPP</a>
-            <button class="action home" type="button" id="backHome">BACK TO HOME</button>
-          </div>
-          <div class="hint">WhatsApp menggunakan Click-to-Chat gratis. Anda tetap perlu menekan tombol Send di WhatsApp.</div>
-        </div>`;
-
-      document.querySelector('#backHome').addEventListener('click', () => {
-        panel.classList.remove('visible');
-        document.querySelectorAll('.choice').forEach(x => x.setAttribute('aria-pressed','false'));
-        activeKey = null;
-        lastSubmission = null;
-        window.scrollTo({top:0,behavior:'smooth'});
-      });
-    }
-
-    Object.entries(forms).forEach(([key,form]) => {
-      choiceRoot.insertAdjacentHTML('beforeend', `<button class="choice" data-form="${key}" aria-pressed="false"><strong>${form.title}</strong><span>${form.description}</span></button>`);
-    });
-
-    choiceRoot.addEventListener('click', event => {
-      const button = event.target.closest('[data-form]');
-      if (button) showForm(button.dataset.form);
-    });
-
+    Object.entries(forms).forEach(([key,form]) => choiceRoot.insertAdjacentHTML('beforeend', `<button class="choice" data-form="${key}" aria-pressed="false"><strong>${form.title}</strong><span>${form.description}</span></button>`));
+    choiceRoot.addEventListener('click', event => { const button = event.target.closest('[data-form]'); if (button) showForm(button.dataset.form); });
     function showForm(key) {
-      activeKey = key;
       const form = forms[key];
       document.querySelectorAll('.choice').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.form === key)));
-      panel.innerHTML = `<div class="panel-header"><h2>${form.title}</h2><p>${form.description}</p></div><form id="activeForm" novalidate>${form.fields.map(inputMarkup).join('')}<button class="submit" type="submit">SUBMIT REGISTRATION</button></form><div class="notice" id="notice"></div>`;
-      panel.classList.add('visible');
-      panel.scrollIntoView({behavior:'smooth',block:'start'});
-      panel.querySelector('form').addEventListener('submit', event => submitForm(event,key));
+      panel.innerHTML = `<div class="panel-header"><h2>${form.title}</h2><p>${form.description}</p></div><form id="activeForm" novalidate>${form.fields.map(inputMarkup).join('')}<button class="submit" type="submit">SUBMIT VIA WHATSAPP</button></form><div class="notice" id="notice"></div>`;
+      panel.classList.add('visible'); panel.scrollIntoView({behavior:'smooth',block:'start'});
+      panel.querySelector('form').addEventListener('submit', event => submitForm(event, key));
     }
-
     async function submitForm(event,key) {
-      event.preventDefault();
-      const form = forms[key];
-      const element = event.currentTarget;
-      const notice = panel.querySelector('#notice');
-      const button = element.querySelector('button[type="submit"]');
-
+      event.preventDefault(); const form = forms[key]; const element = event.currentTarget; const notice = panel.querySelector('#notice');
       if (!element.reportValidity()) return;
-
-      const phoneField = element.querySelector('input[type="tel"]');
-      if (phoneField) {
-        const normalized = normalizePhone(phoneField.value);
-        if (!/^628\d{8,13}$/.test(normalized)) {
-          notice.classList.add('error');
-          notice.textContent = 'Nomor handphone tidak valid. Gunakan nomor Indonesia yang benar.';
-          phoneField.focus();
-          return;
-        }
-        phoneField.value = normalized;
-      }
-
-      button.disabled = true;
-      notice.classList.remove('error');
-      notice.textContent = 'Menyimpan data…';
-
-      const data = new FormData(element);
-      const submissionId = generateSubmissionId();
-      data.append('submissionId', submissionId);
-      data.append('formType', form.title);
-
+      const button = element.querySelector('button'); button.disabled = true; notice.textContent = 'Submitting data…';
+      const data = new FormData(element); const message = formatMessage(form.title,data);
+      window.open(`https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(message)}`,'_blank','noopener');
       try {
-        await submitToEndpoint(form, data);
-        showSuccess(key, data);
-      } catch (error) {
-        console.error(error);
-        notice.classList.add('error');
-        notice.textContent = 'Data belum berhasil disimpan. Silakan coba kembali.';
-        button.disabled = false;
-      }
+        if (form.upload) {
+          const file = data.get('foto'); const encoded = await new Promise((resolve,reject) => { const reader=new FileReader(); reader.onload=()=>resolve(reader.result); reader.onerror=reject; reader.readAsDataURL(file); });
+          const payload = Object.fromEntries(data.entries()); payload.foto = encoded;
+          await fetch(form.endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        } else {
+          const relay = document.createElement('form'); relay.method='POST'; relay.action=form.endpoint; relay.target='submission_target'; relay.hidden=true;
+          for (const [name,value] of data.entries()) { const input=document.createElement('input'); input.name=name; input.value=value; relay.appendChild(input); }
+          document.body.appendChild(relay); relay.submit(); relay.remove();
+        }
+        notice.textContent = 'Data submitted. WhatsApp has been opened.'; element.reset();
+        const datetime = element.querySelector('[name="datetime"]'); if (datetime) datetime.value = dateText();
+      } catch (error) { notice.textContent = 'WhatsApp has been opened, but the Google Sheet submission should be checked.'; }
+      button.disabled = false;
     }
   </script>
 </body>
