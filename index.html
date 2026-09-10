@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HIKJ Visitor Management</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --navy:#0f1c2e; --blue:#132640; --green:#25d366; --line:rgba(255,255,255,.23); }
+    * { box-sizing:border-box; font-family:Poppins,Arial,sans-serif; }
+    body { margin:0; min-height:100vh; color:#fff; background:linear-gradient(160deg,var(--navy),var(--blue) 55%,var(--navy)); }
+    .shell { width:min(960px,calc(100% - 28px)); margin:0 auto; padding:34px 0 56px; }
+    header { text-align:center; margin-bottom:28px; }
+    h1 { margin:0; font-size:clamp(1.7rem,5vw,2.35rem); }
+    header p { margin:9px auto 0; max-width:650px; opacity:.8; font-size:.92rem; }
+    .choices { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; }
+    .choice { min-height:118px; border:1px solid var(--line); border-radius:16px; background:rgba(255,255,255,.07); color:#fff; padding:18px; text-align:left; cursor:pointer; transition:.18s ease; }
+    .choice:hover,.choice[aria-pressed="true"] { transform:translateY(-2px); border-color:var(--green); background:rgba(37,211,102,.14); }
+    .choice strong,.choice span { display:block; }
+    .choice strong { font-size:1rem; }
+    .choice span { margin-top:6px; opacity:.76; font-size:.75rem; line-height:1.35; }
+    .panel { display:none; max-width:580px; margin:28px auto 0; overflow:hidden; border-radius:18px; background:rgba(19,38,64,.72); box-shadow:0 20px 48px rgba(0,0,0,.35); }
+    .panel.visible { display:block; }
+    .panel-header { padding:22px; border-bottom:1px solid var(--line); }
+    .panel-header h2 { margin:0; font-size:1.25rem; }
+    .panel-header p { margin:6px 0 0; opacity:.78; font-size:.82rem; }
+    form { padding:22px; }
+    .field { margin-bottom:18px; }
+    label { display:block; margin-bottom:6px; font-size:.83rem; font-weight:500; }
+    input,select,textarea { width:100%; border:0; border-bottom:2px solid var(--line); outline:0; padding:11px 5px; background:transparent; color:#fff; font-size:.92rem; }
+    select option { color:#111; }
+    textarea { min-height:88px; resize:vertical; }
+    input:focus,select:focus,textarea:focus { border-color:var(--green); }
+    input[readonly] { opacity:.78; }
+    input[type=file] { border:1px dashed var(--line); border-radius:10px; padding:10px; }
+    .submit { width:100%; border:0; border-radius:12px; padding:14px; background:var(--green); color:#fff; font-weight:700; font-size:.92rem; cursor:pointer; }
+    .submit:disabled { opacity:.55; cursor:wait; }
+    .notice { padding:0 22px 20px; color:#c7f9d8; font-size:.8rem; min-height:24px; }
+    .privacy { margin:22px auto 0; max-width:580px; text-align:center; opacity:.65; font-size:.72rem; line-height:1.5; }
+    @media (max-width:480px) { .shell { width:min(100% - 20px,960px); padding-top:24px; } .choices { grid-template-columns:1fr 1fr; gap:9px; } .choice { min-height:106px; padding:14px; } form { padding:18px; } }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <h1>HIKJ Visitor Management</h1>
+      <p>Pilih kebutuhan Anda. Formulir akan terbuka di halaman ini—tidak perlu mencari tautan terpisah.</p>
+    </header>
+    <section id="choices" class="choices" aria-label="Pilih formulir"></section>
+    <section id="panel" class="panel" aria-live="polite"></section>
+    <p class="privacy">Data yang dikirim akan diteruskan ke WhatsApp dan/atau Google Sheet operasional sesuai jenis formulir.</p>
+  </main>
+  <iframe name="submission_target" hidden></iframe>
+  <script>
+    const WA_NUMBER = '6281314414955';
+    const locations = ['Receiving','Purchasing','Grand Ball Room','Bali Room','Ramayana Terrace','Heritage 1','Heritage 2','Cendana + Eboni','Palapi + Jati','Damar + Angsana','Mahoni + Ulin','Business Center','Signature Restaurant','Paulaner Restaurant','Oku Restaurant','Executive Lounge','President Suite Room 832','Room','Lainnya'];
+    const forms = {
+      masuk: { title:'Registrasi Masuk', description:'Lengkapi data sebelum memasuki area Hotel Indonesia Kempinski Jakarta.', endpoint:'https://script.google.com/macros/s/AKfycbyvW7tRgTGBJH249C-VUMCdqtfjmBcayViSu8wUhB3RyPWOHrVbmPMza67hMNR2EDJ9Mw/exec', fields:[
+        ['nama','Nama'],['phone','No. Handphone','tel'],['perusahaan','Nama Perusahaan / Vendor'],['kategori','Kategori','select',['Kontraktor','Supplier','Visitor','Parttime']],['lokasi','Lokasi Kerja','select',locations],['tujuan','Tujuan','textarea'],['security','Nama Security'],['pass','Nomor Pass / Rompi'],['datetime','Tanggal & Jam Masuk','datetime']
+      ]},
+      keluar: { title:'Registrasi Keluar', description:'Lengkapi data sebelum keluar dari area Hotel Indonesia Kempinski Jakarta.', endpoint:'https://script.google.com/macros/s/AKfycby47gQyNqiqBKOjclIibO5FPzpdm7KUcA50NMM_d3n3PYAN4P7CT16QwXuQ5vHjZb-b/exec', fields:[
+        ['nama','Nama'],['perusahaan','Nama Perusahaan / Vendor'],['pass','Nomor Pass / Rompi'],['security','Nama Security'],['datetime','Tanggal & Jam Keluar','datetime']
+      ]},
+      paket: { title:'Registrasi Paket', description:'Catat pengantaran paket dan foto barang.', endpoint:'https://script.google.com/macros/s/AKfycby4LnxzJ-c_n4spkv8Inw-zpFZR-D4y6G50E3JR68aDX_mLdEctXgVhBTboqXSvhaNf/exec', upload:true, fields:[
+        ['namaPengantar','Nama Pengantar'],['telepon','Nomor Telepon','tel'],['perusahaan','Nama Perusahaan'],['jenisBarang','Jenis Barang','select',['SURAT','PAKET']],['jumlah','Jumlah Barang'],['tujuan','Tujuan','select',['STAFF','TAMU']],['namaTujuan','Nama Tujuan'],['security','Nama Security'],['foto','Foto Barang','file']
+      ]},
+      pinjamKunci: { title:'Key Borrowing', description:'Complete this form before borrowing keys.', endpoint:'https://script.google.com/macros/s/AKfycbxjT966V0gzzTTyY48v4oUjDzaZ1oniT6UYC6DOYbBoTvR6gtxXg_Xb7cfYDJTebTQtAQ/exec', fields:[
+        ['borrowerName','Borrower Name'],['department','Department'],['keyNumber','Key Number'],['description','Key Description','textarea'],['qty','Quantity of Keys'],['security','Security Officer In Charge'],['datetime','Date & Time Borrowed','datetime']
+      ]},
+      kembaliKunci: { title:'Key Return', description:'Complete this form after returning keys.', endpoint:'https://script.google.com/macros/s/AKfycbw9O6noEzFPKKybzcFFdRi2ykDY4xTNwSThJm7wqqNWqBMTxHXesHyk24xrf9XAmzOEDw/exec', fields:[
+        ['returnName','Return Name'],['department','Department'],['keyNumber','Key Number'],['description','Key Description','textarea'],['qty','Quantity of Keys'],['security','Security Officer In Charge'],['datetime','Date & Time Returned','datetime']
+      ]}
+    };
+    const choiceRoot = document.querySelector('#choices');
+    const panel = document.querySelector('#panel');
+    const dateText = () => new Date().toLocaleDateString('id-ID') + ' ' + new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
+    const formatMessage = (title, data) => title.toUpperCase() + '\n\n' + [...data.entries()].filter(([key]) => key !== 'foto' && key !== 'datetime').map(([key,value]) => `${document.querySelector(`[name="${key}"]`)?.closest('.field')?.querySelector('label')?.textContent || key}: ${value}`).join('\n') + (data.get('datetime') ? `\n${document.querySelector('[name="datetime"]')?.closest('.field')?.querySelector('label')?.textContent}: ${data.get('datetime')}` : '');
+    function inputMarkup([name,label,type='text',options=[]]) {
+      if (type === 'textarea') return `<div class="field"><label for="${name}">${label}</label><textarea id="${name}" name="${name}" required></textarea></div>`;
+      if (type === 'select') return `<div class="field"><label for="${name}">${label}</label><select id="${name}" name="${name}" required><option value="">Pilih</option>${options.map(x=>`<option>${x}</option>`).join('')}</select></div>`;
+      if (type === 'datetime') return `<div class="field"><label for="${name}">${label}</label><input id="${name}" name="${name}" readonly value="${dateText()}"></div>`;
+      if (type === 'file') return `<div class="field"><label for="${name}">${label}</label><input id="${name}" name="${name}" type="file" accept="image/*" required></div>`;
+      return `<div class="field"><label for="${name}">${label}</label><input id="${name}" name="${name}" type="${type}" required></div>`;
+    }
+    Object.entries(forms).forEach(([key,form]) => choiceRoot.insertAdjacentHTML('beforeend', `<button class="choice" data-form="${key}" aria-pressed="false"><strong>${form.title}</strong><span>${form.description}</span></button>`));
+    choiceRoot.addEventListener('click', event => { const button = event.target.closest('[data-form]'); if (button) showForm(button.dataset.form); });
+    function showForm(key) {
+      const form = forms[key];
+      document.querySelectorAll('.choice').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.form === key)));
+      panel.innerHTML = `<div class="panel-header"><h2>${form.title}</h2><p>${form.description}</p></div><form id="activeForm" novalidate>${form.fields.map(inputMarkup).join('')}<button class="submit" type="submit">KIRIM VIA WHATSAPP</button></form><div class="notice" id="notice"></div>`;
+      panel.classList.add('visible'); panel.scrollIntoView({behavior:'smooth',block:'start'});
+      panel.querySelector('form').addEventListener('submit', event => submitForm(event, key));
+    }
+    async function submitForm(event,key) {
+      event.preventDefault(); const form = forms[key]; const element = event.currentTarget; const notice = panel.querySelector('#notice');
+      if (!element.reportValidity()) return;
+      const button = element.querySelector('button'); button.disabled = true; notice.textContent = 'Mengirim data…';
+      const data = new FormData(element); const message = formatMessage(form.title,data);
+      window.open(`https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(message)}`,'_blank','noopener');
+      try {
+        if (form.upload) {
+          const file = data.get('foto'); const encoded = await new Promise((resolve,reject) => { const reader=new FileReader(); reader.onload=()=>resolve(reader.result); reader.onerror=reject; reader.readAsDataURL(file); });
+          const payload = Object.fromEntries(data.entries()); payload.foto = encoded;
+          await fetch(form.endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        } else {
+          const relay = document.createElement('form'); relay.method='POST'; relay.action=form.endpoint; relay.target='submission_target'; relay.hidden=true;
+          for (const [name,value] of data.entries()) { const input=document.createElement('input'); input.name=name; input.value=value; relay.appendChild(input); }
+          document.body.appendChild(relay); relay.submit(); relay.remove();
+        }
+        notice.textContent = 'Data diteruskan. Jendela WhatsApp telah dibuka.'; element.reset();
+        const datetime = element.querySelector('[name="datetime"]'); if (datetime) datetime.value = dateText();
+      } catch (error) { notice.textContent = 'WhatsApp sudah dibuka, tetapi pengiriman ke Google Sheet perlu diperiksa.'; }
+      button.disabled = false;
+    }
+  </script>
+</body>
+</html>
