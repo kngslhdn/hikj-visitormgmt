@@ -21,12 +21,9 @@ function timestamp(v:unknown){
  return Number.isNaN(d.getTime())?new Date().toISOString():d.toISOString();
 }
 
-// A phone number is not a unique person identifier. Match the complete
-// submitted identity so reused/shared numbers cannot attach to another visitor.
 async function visitorIdentity(name:string,mobile:string,company:string,category:string|null){
  const normalized=phone(mobile);
  const nameKey=normText(name),companyKey=normText(company),categoryKey=normText(category);
-
  if(normalized){
   const {data,error}=await supabase.from('visitors').select('id,full_name,company_name,category').eq('phone_normalized',normalized).limit(50);
   if(error)throw error;
@@ -38,9 +35,25 @@ async function visitorIdentity(name:string,mobile:string,company:string,category
   const match=(data||[]).find(v=>normText(v.full_name)===nameKey&&normText(v.company_name)===companyKey&&normText(v.category)===categoryKey);
   if(match)return match.id;
  }
-
  const {data,error}=await supabase.from('visitors').insert({full_name:name,phone:mobile||null,phone_normalized:normalized||null,company_name:company||null,category:category||null}).select('id').single();
  if(error)throw error;return data.id;
+}
+
+// Exit is allowed only when at least one submitted identifier matches an active entry.
+// Name OR Pass/Vest Number is sufficient; company is not required for validation.
+async function findExitEntry(name:string,pass:string){
+ const nameKey=normText(name);
+ const passKey=normText(pass);
+ const {data,error}=await supabase.from('visitor_entries')
+  .select('id,visitor_id,visitor_name,pass_vest_number,entry_at')
+  .is('exit_id',null)
+  .order('entry_at',{ascending:false})
+  .limit(200);
+ if(error)throw error;
+ return (data||[]).find(e=>
+   (nameKey && normText(e.visitor_name)===nameKey) ||
+   (passKey && normText(e.pass_vest_number)===passKey)
+ )||null;
 }
 
 async function uploadPackagePhoto(dataUrl:string,submissionId:string){
@@ -52,7 +65,7 @@ async function uploadPackagePhoto(dataUrl:string,submissionId:string){
 }
 
 Deno.serve(async req=>{
- if(req.method==='OPTIONS')return new Response('ok',{headers:cors});
+ if(req.method==='OPTIONS')return new Response(null,{status:204,headers:cors});
  if(req.method!=='POST')return json({error:'Method not allowed'},405);
  try{
   const body=await req.json();
@@ -65,10 +78,20 @@ Deno.serve(async req=>{
   const mobile=clean(val(body,'phone','mobile_phone','telepon'));
   const company=clean(val(body,'company_name','company','perusahaan'));
   let visitorId:string|null=null;
+  let matchedExitEntry:any=null;
+
   if(type==='visitor_entry'||type==='visitor_exit'){
    const pass=clean(val(body,'pass_vest_number','pass'));const officer=clean(val(body,'security_officer_name','security'));
    if(!name||!pass||!officer)return json({error:'Required visitor fields are missing'},400);
-   visitorId=await visitorIdentity(name,mobile,company,clean(body.category)||null);
+   if(type==='visitor_exit'){
+    matchedExitEntry=await findExitEntry(name,pass);
+    if(!matchedExitEntry){
+     return json({ok:false,error:'Visitor not found: Name or Pass/Vest Number does not match any visitor currently inside the hotel.'},404);
+    }
+    visitorId=matchedExitEntry.visitor_id;
+   }else{
+    visitorId=await visitorIdentity(name,mobile,company,clean(body.category)||null);
+   }
   }
 
   const submissionId=`HIKJ-${new Date().toISOString().replace(/[-:TZ.]/g,'').slice(0,14)}-${crypto.randomUUID().slice(0,6).toUpperCase()}`;
@@ -78,7 +101,7 @@ Deno.serve(async req=>{
   if(type==='visitor_entry'){
    const {error}=await supabase.from('visitor_entries').insert({submission_id:submission.id,visitor_id:visitorId,visitor_name:name,visitor_phone:mobile||null,visitor_company_name:company||null,visitor_category:clean(body.category)||null,work_location:clean(val(body,'work_location','lokasi')),purpose:clean(val(body,'purpose','tujuan')),security_officer_name:clean(val(body,'security_officer_name','security')),pass_vest_number:clean(val(body,'pass_vest_number','pass')),entry_at:timestamp(body.entry_at||body.datetime)});if(error)throw error;
   }else if(type==='visitor_exit'){
-   const pass=clean(val(body,'pass_vest_number','pass'));const {data:entry}=await supabase.from('visitor_entries').select('id').eq('pass_vest_number',pass).is('exit_id',null).order('entry_at',{ascending:false}).limit(1).maybeSingle();
+   const pass=clean(val(body,'pass_vest_number','pass'));const entry=matchedExitEntry;
    const {data:ex,error}=await supabase.from('visitor_exits').insert({submission_id:submission.id,visitor_id:visitorId,entry_id:entry?.id||null,visitor_name:name,company_name:company||null,pass_vest_number:pass,security_officer_name:clean(val(body,'security_officer_name','security')),exit_at:timestamp(body.exit_at||body.datetime)}).select('id').single();if(error)throw error;if(entry?.id)await supabase.from('visitor_entries').update({exit_id:ex.id}).eq('id',entry.id);
   }else if(type==='key_borrowing'){
    const {error}=await supabase.from('key_borrowings').insert({submission_id:submission.id,borrower_name:clean(val(body,'borrower_name','borrowerName')),department:clean(body.department),key_number:clean(body.key_number||body.keyNumber),key_description:clean(body.key_description||body.description),quantity:Number(body.quantity||body.qty||1),security_officer_name:clean(val(body,'security_officer_name','security')),borrowed_at:timestamp(body.borrowed_at||body.datetime)});if(error)throw error;
