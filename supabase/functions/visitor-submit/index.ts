@@ -5,6 +5,7 @@ const supabase=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...cors,'Content-Type':'application/json'}});
 const clean=(v:unknown)=>String(v??'').trim().replace(/[<>]/g,'');
 const phone=(v:unknown)=>clean(v).replace(/[^0-9+]/g,'').replace(/^0+/,'');
+const normText=(v:unknown)=>clean(v).toLowerCase().replace(/\s+/g,' ');
 const types:Record<string,string>={entry:'visitor_entry',masuk:'visitor_entry',exit:'visitor_exit',keluar:'visitor_exit',borrowing:'key_borrowing',pinjamKunci:'key_borrowing',return:'key_return',kembaliKunci:'key_return',package:'package_registration',paket:'package_registration'};
 const val=(b:any,...keys:string[])=>keys.map(k=>b[k]).find(v=>v!==undefined&&v!==null&&String(v).trim()!=='')??'';
 
@@ -20,9 +21,24 @@ function timestamp(v:unknown){
  return Number.isNaN(d.getTime())?new Date().toISOString():d.toISOString();
 }
 
+// A phone number is not a unique person identifier. Match the complete
+// submitted identity so reused/shared numbers cannot attach to another visitor.
 async function visitorIdentity(name:string,mobile:string,company:string,category:string|null){
  const normalized=phone(mobile);
- if(normalized){const {data}=await supabase.from('visitors').select('id').eq('phone_normalized',normalized).maybeSingle();if(data)return data.id;}
+ const nameKey=normText(name),companyKey=normText(company),categoryKey=normText(category);
+
+ if(normalized){
+  const {data,error}=await supabase.from('visitors').select('id,full_name,company_name,category').eq('phone_normalized',normalized).limit(50);
+  if(error)throw error;
+  const match=(data||[]).find(v=>normText(v.full_name)===nameKey&&normText(v.company_name)===companyKey&&normText(v.category)===categoryKey);
+  if(match)return match.id;
+ }else{
+  const {data,error}=await supabase.from('visitors').select('id,full_name,company_name,category').limit(200);
+  if(error)throw error;
+  const match=(data||[]).find(v=>normText(v.full_name)===nameKey&&normText(v.company_name)===companyKey&&normText(v.category)===categoryKey);
+  if(match)return match.id;
+ }
+
  const {data,error}=await supabase.from('visitors').insert({full_name:name,phone:mobile||null,phone_normalized:normalized||null,company_name:company||null,category:category||null}).select('id').single();
  if(error)throw error;return data.id;
 }
@@ -60,7 +76,7 @@ Deno.serve(async req=>{
   if(se)throw se;
 
   if(type==='visitor_entry'){
-   const {error}=await supabase.from('visitor_entries').insert({submission_id:submission.id,visitor_id:visitorId,work_location:clean(val(body,'work_location','lokasi')),purpose:clean(val(body,'purpose','tujuan')),security_officer_name:clean(val(body,'security_officer_name','security')),pass_vest_number:clean(val(body,'pass_vest_number','pass')),entry_at:timestamp(body.entry_at||body.datetime)});if(error)throw error;
+   const {error}=await supabase.from('visitor_entries').insert({submission_id:submission.id,visitor_id:visitorId,visitor_name:name,visitor_phone:mobile||null,visitor_company_name:company||null,visitor_category:clean(body.category)||null,work_location:clean(val(body,'work_location','lokasi')),purpose:clean(val(body,'purpose','tujuan')),security_officer_name:clean(val(body,'security_officer_name','security')),pass_vest_number:clean(val(body,'pass_vest_number','pass')),entry_at:timestamp(body.entry_at||body.datetime)});if(error)throw error;
   }else if(type==='visitor_exit'){
    const pass=clean(val(body,'pass_vest_number','pass'));const {data:entry}=await supabase.from('visitor_entries').select('id').eq('pass_vest_number',pass).is('exit_id',null).order('entry_at',{ascending:false}).limit(1).maybeSingle();
    const {data:ex,error}=await supabase.from('visitor_exits').insert({submission_id:submission.id,visitor_id:visitorId,entry_id:entry?.id||null,visitor_name:name,company_name:company||null,pass_vest_number:pass,security_officer_name:clean(val(body,'security_officer_name','security')),exit_at:timestamp(body.exit_at||body.datetime)}).select('id').single();if(error)throw error;if(entry?.id)await supabase.from('visitor_entries').update({exit_id:ex.id}).eq('id',entry.id);
