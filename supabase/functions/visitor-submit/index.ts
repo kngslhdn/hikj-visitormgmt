@@ -8,6 +8,18 @@ const phone=(v:unknown)=>clean(v).replace(/[^0-9+]/g,'').replace(/^0+/,'');
 const types:Record<string,string>={entry:'visitor_entry',masuk:'visitor_entry',exit:'visitor_exit',keluar:'visitor_exit',borrowing:'key_borrowing',pinjamKunci:'key_borrowing',return:'key_return',kembaliKunci:'key_return',package:'package_registration',paket:'package_registration'};
 const val=(b:any,...keys:string[])=>keys.map(k=>b[k]).find(v=>v!==undefined&&v!==null&&String(v).trim()!=='')??'';
 
+function timestamp(v:unknown){
+ const s=clean(v);
+ if(!s)return new Date().toISOString();
+ if(/^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/.test(s)){
+  const [date,time]=s.split(' ');const [dd,mm,yyyy]=date.split('/');
+  const d=new Date(Number(yyyy),Number(mm)-1,Number(dd),Number(time.slice(0,2)),Number(time.slice(3,5)));
+  if(!Number.isNaN(d.getTime()))return d.toISOString();
+ }
+ const d=new Date(s);
+ return Number.isNaN(d.getTime())?new Date().toISOString():d.toISOString();
+}
+
 async function visitorIdentity(name:string,mobile:string,company:string,category:string|null){
  const normalized=phone(mobile);
  if(normalized){const {data}=await supabase.from('visitors').select('id').eq('phone_normalized',normalized).maybeSingle();if(data)return data.id;}
@@ -48,14 +60,14 @@ Deno.serve(async req=>{
   if(se)throw se;
 
   if(type==='visitor_entry'){
-   const {error}=await supabase.from('visitor_entries').insert({submission_id:submission.id,visitor_id:visitorId,work_location:clean(val(body,'work_location','lokasi')),purpose:clean(val(body,'purpose','tujuan')),security_officer_name:clean(val(body,'security_officer_name','security')),pass_vest_number:clean(val(body,'pass_vest_number','pass')),entry_at:body.entry_at||body.datetime||new Date().toISOString()});if(error)throw error;
+   const {error}=await supabase.from('visitor_entries').insert({submission_id:submission.id,visitor_id:visitorId,work_location:clean(val(body,'work_location','lokasi')),purpose:clean(val(body,'purpose','tujuan')),security_officer_name:clean(val(body,'security_officer_name','security')),pass_vest_number:clean(val(body,'pass_vest_number','pass')),entry_at:timestamp(body.entry_at||body.datetime)});if(error)throw error;
   }else if(type==='visitor_exit'){
    const pass=clean(val(body,'pass_vest_number','pass'));const {data:entry}=await supabase.from('visitor_entries').select('id').eq('pass_vest_number',pass).is('exit_id',null).order('entry_at',{ascending:false}).limit(1).maybeSingle();
-   const {data:ex,error}=await supabase.from('visitor_exits').insert({submission_id:submission.id,visitor_id:visitorId,entry_id:entry?.id||null,visitor_name:name,company_name:company||null,pass_vest_number:pass,security_officer_name:clean(val(body,'security_officer_name','security')),exit_at:body.exit_at||body.datetime||new Date().toISOString()}).select('id').single();if(error)throw error;if(entry?.id)await supabase.from('visitor_entries').update({exit_id:ex.id}).eq('id',entry.id);
+   const {data:ex,error}=await supabase.from('visitor_exits').insert({submission_id:submission.id,visitor_id:visitorId,entry_id:entry?.id||null,visitor_name:name,company_name:company||null,pass_vest_number:pass,security_officer_name:clean(val(body,'security_officer_name','security')),exit_at:timestamp(body.exit_at||body.datetime)}).select('id').single();if(error)throw error;if(entry?.id)await supabase.from('visitor_entries').update({exit_id:ex.id}).eq('id',entry.id);
   }else if(type==='key_borrowing'){
-   const {error}=await supabase.from('key_borrowings').insert({submission_id:submission.id,borrower_name:clean(val(body,'borrower_name','borrowerName')),department:clean(body.department),key_number:clean(body.key_number||body.keyNumber),key_description:clean(body.key_description||body.description),quantity:Number(body.quantity||body.qty||1),security_officer_name:clean(val(body,'security_officer_name','security')),borrowed_at:body.borrowed_at||body.datetime||new Date().toISOString()});if(error)throw error;
+   const {error}=await supabase.from('key_borrowings').insert({submission_id:submission.id,borrower_name:clean(val(body,'borrower_name','borrowerName')),department:clean(body.department),key_number:clean(body.key_number||body.keyNumber),key_description:clean(body.key_description||body.description),quantity:Number(body.quantity||body.qty||1),security_officer_name:clean(val(body,'security_officer_name','security')),borrowed_at:timestamp(body.borrowed_at||body.datetime)});if(error)throw error;
   }else if(type==='key_return'){
-   const key=clean(body.key_number||body.keyNumber);const {data:borrowing}=await supabase.from('key_borrowings').select('id').eq('key_number',key).is('return_id',null).order('borrowed_at',{ascending:false}).limit(1).maybeSingle();const {data:ret,error}=await supabase.from('key_returns').insert({submission_id:submission.id,borrowing_id:borrowing?.id||null,return_name:clean(val(body,'return_name','returnName')),department:clean(body.department),key_number:key,key_description:clean(body.key_description||body.description),quantity:Number(body.quantity||body.qty||1),security_officer_name:clean(val(body,'security_officer_name','security')),returned_at:body.returned_at||body.datetime||new Date().toISOString()}).select('id').single();if(error)throw error;if(borrowing?.id)await supabase.from('key_borrowings').update({return_id:ret.id}).eq('id',borrowing.id);
+   const key=clean(body.key_number||body.keyNumber);const {data:borrowing}=await supabase.from('key_borrowings').select('id').eq('key_number',key).is('return_id',null).order('borrowed_at',{ascending:false}).limit(1).maybeSingle();const {data:ret,error}=await supabase.from('key_returns').insert({submission_id:submission.id,borrowing_id:borrowing?.id||null,return_name:clean(val(body,'return_name','returnName')),department:clean(body.department),key_number:key,key_description:clean(body.key_description||body.description),quantity:Number(body.quantity||body.qty||1),security_officer_name:clean(val(body,'security_officer_name','security')),returned_at:timestamp(body.returned_at||body.datetime)}).select('id').single();if(error)throw error;if(borrowing?.id)await supabase.from('key_borrowings').update({return_id:ret.id}).eq('id',borrowing.id);
   }else{
    const path=await uploadPackagePhoto(clean(body.foto||body.photo_data_url));const {error}=await supabase.from('package_registrations').insert({submission_id:submission.id,courier_name:clean(val(body,'courier_name','namaPengantar')),phone:mobile||null,phone_normalized:phone(mobile)||null,company_name:company,item_type:clean(val(body,'item_type','jenisBarang')).toUpperCase(),item_count:Number(body.item_count||body.number_of_items||body.jumlah||1),recipient_type:clean(val(body,'recipient_type','tujuan')).toUpperCase(),recipient_name:clean(val(body,'recipient_name','namaTujuan')),security_officer_name:clean(val(body,'security_officer_name','security')),photo_storage_path:path});if(error)throw error;
   }
