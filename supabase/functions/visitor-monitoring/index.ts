@@ -43,7 +43,7 @@ Deno.serve(async (req: Request) => {
 
     const [entriesResult, exitsResult] = await Promise.all([
       sb.from('visitor_entries').select('id,submission_id,visitor_id,visitor_name_snapshot,phone_snapshot,company_name_snapshot,category_snapshot,visitor_name,visitor_phone,visitor_company_name,visitor_category,work_location,purpose,security_officer_name,pass_vest_number,entry_at,exit_id').order('entry_at', { ascending: false }).limit(5000),
-      sb.from('visitor_exits').select('id,submission_id,visitor_id,entry_id,visitor_name,company_name,pass_vest_number,security_officer_name,exit_at').order('exit_at', { ascending: false }).limit(5000)
+      sb.from('visitor_exits').select('id,submission_id,visitor_id,entry_id,visitor_name,pass_vest_number,security_officer_name,exit_at').order('exit_at', { ascending: false }).limit(5000)
     ]);
     if (entriesResult.error) throw entriesResult.error;
     if (exitsResult.error) throw exitsResult.error;
@@ -61,7 +61,7 @@ Deno.serve(async (req: Request) => {
       const visitor = {
         full_name: e.visitor_name_snapshot || e.visitor_name || x?.visitor_name || '',
         phone: e.phone_snapshot || e.visitor_phone || '',
-        company_name: e.company_name_snapshot || e.visitor_company_name || x?.company_name || '',
+        company_name: e.company_name_snapshot || e.visitor_company_name || '',
         category: e.category_snapshot || e.visitor_category || ''
       };
       const haystack = [visitor.full_name, visitor.phone, visitor.company_name, visitor.category, e.work_location, e.purpose, e.pass_vest_number, e.security_officer_name].join(' ').toLowerCase();
@@ -86,7 +86,6 @@ Deno.serve(async (req: Request) => {
           visitor_id: x.visitor_id,
           entry_id: x.entry_id,
           visitor_name: x.visitor_name,
-          company_name: x.company_name,
           pass_vest_number: x.pass_vest_number,
           security_officer_name: x.security_officer_name,
           exit_at: x.exit_at
@@ -94,18 +93,17 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // Keep orphan exit records visible in All Record / Visitor Exit if an old record has no matching entry.
     for (const x of exits) {
       if (matchedExitIds.has(x.id)) continue;
       if (from && new Date(x.exit_at).getTime() < new Date(from).getTime()) continue;
       if (to && new Date(x.exit_at).getTime() >= new Date(to).getTime()) continue;
-      const haystack = [x.visitor_name, x.company_name, x.pass_vest_number, x.security_officer_name].join(' ').toLowerCase();
+      const haystack = [x.visitor_name, x.pass_vest_number, x.security_officer_name].join(' ').toLowerCase();
       if (q && !haystack.includes(q)) continue;
       rows.push({
         id: `exit-${x.id}`,
         submission_id: x.submission_id,
         visitor_id: x.visitor_id,
-        visitor: { full_name: x.visitor_name || '', phone: '', company_name: x.company_name || '', category: '' },
+        visitor: { full_name: x.visitor_name || '', phone: '', company_name: '', category: '' },
         work_location: '',
         purpose: '',
         pass_vest_number: x.pass_vest_number,
