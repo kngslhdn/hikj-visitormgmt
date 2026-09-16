@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.admin-api]
 verify_jwt = false
+
+[functions.visitor-monitoring]
+verify_jwt = false
