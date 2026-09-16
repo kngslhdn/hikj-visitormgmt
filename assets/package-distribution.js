@@ -41,12 +41,12 @@
   function tuneCards() {
     document.querySelectorAll('.choice .arrow').forEach(el => el.remove());
     const style = document.createElement('style');
-    style.id = 'hikj-card-layout-v2';
+    style.id = 'hikj-card-layout-v3';
     style.textContent = `
       .choices{grid-template-columns:repeat(6,170px);gap:8px;width:max-content;max-width:100%}
-      .choice,.choice:last-child{width:170px;height:166px;min-height:166px;padding:18px 14px;justify-self:center;justify-content:center}
-      .choice-icon{margin:0 auto 11px}
-      .choice strong{min-height:0;width:100%;line-height:1.3}
+      .choice,.choice:last-child{width:170px;height:166px;min-height:166px;padding:24px 14px 16px;justify-self:center;justify-content:flex-start}
+      .choice-icon{margin:0 auto 11px;flex:0 0 58px}
+      .choice strong{min-height:42px;width:100%;line-height:1.3;display:flex;align-items:center;justify-content:center}
       @media(max-width:900px){
         .choices{grid-template-columns:repeat(3,170px);width:526px;max-width:100%}
         .choice,.choice:last-child{width:170px;height:166px;min-height:166px}
@@ -132,7 +132,6 @@
     try {
       const q = encodeURIComponent(document.querySelector('#pdSearch')?.value.trim() || '');
       const response = await callApi(`?q=${q}&limit=50`);
-      // Support both current and previous function response shapes.
       const items = Array.isArray(response?.data) ? response.data : (Array.isArray(response?.packages) ? response.packages : []);
       if (!items.length) { results.innerHTML = '<div class="pd-empty">No package available for distribution.</div>'; return; }
       results.innerHTML = items.map((p, i) => `<button class="pd-result" data-pd-index="${i}">
