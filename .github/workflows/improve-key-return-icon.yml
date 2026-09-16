@@ -1,0 +1,41 @@
+name: Improve Key Return Icon
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/improve-key-return-icon.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Replace Key Return SVG
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+
+          old = "return:'<svg viewBox=\"0 0 48 48\"><circle cx=\"17\" cy=\"20\" r=\"7\"/><path d=\"M22 25 37 10M31 15l5 5M27 19l5 5\"/><path d=\"M9 35a14 14 0 0 0 27-5M36 30l-1 5-5-1\"/></svg>'"
+          new = "return:'<svg viewBox=\"0 0 48 48\"><circle cx=\"16\" cy=\"18\" r=\"6.5\"/><path d=\"M21 23 36 8M29 15l5 5M25 19l5 5\"/><path d=\"M8 30c1 7 7 11 14 11 8 0 14-5 16-12\"/><path d=\"M38 29l-1 6-6-1\"/></svg>'"
+
+          if old not in s:
+              raise SystemExit('Key Return SVG target not found')
+
+          p.write_text(s.replace(old, new, 1), encoding='utf-8')
+          PY
+
+      - name: Commit icon update
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git diff --cached --quiet && exit 0
+          git commit -m 'Improve key return icon'
+          git push
