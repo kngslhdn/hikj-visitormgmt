@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -20,6 +20,69 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Integrate Package Distribution
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('index.html'); s=p.read_text(encoding='utf-8')
+          if 'assets/package-distribution.js' not in s: s=s.replace('</body>','<script src="assets/package-distribution.js"></script>\n</body>',1)
+          marker='const SUPABASE_PUBLISHABLE_KEY='
+          if marker in s and 'window.HIKJ_SUPABASE_PUBLISHABLE_KEY' not in s:
+              a=s.index(marker)+len(marker); b=s.index(';',a); value=s[a:b]
+              s=s.replace('</body>','<script>window.HIKJ_SUPABASE_PUBLISHABLE_KEY='+value+';</script>\n</body>',1)
+          s=s.replace('.choices{display:grid;grid-template-columns:repeat(5,158px);','.choices{display:grid;grid-template-columns:repeat(6,158px);',1)
+          s=s.replace('@media(max-width:900px){.choices{grid-template-columns:repeat(2,158px);width:324px;','@media(max-width:900px){.choices{grid-template-columns:repeat(3,158px);width:490px;',1)
+          p.write_text(s,encoding='utf-8')
+
+          p=Path('admin/index.html'); s=p.read_text(encoding='utf-8')
+          if 'admin-package-distribution.js' not in s: s=s.replace('</body>','<script src="admin-package-distribution.js"></script>\n</body>',1)
+          if marker in s and 'window.HIKJ_SUPABASE_PUBLISHABLE_KEY' not in s:
+              a=s.index(marker)+len(marker); b=s.index(';',a); value=s[a:b]
+              s=s.replace('</body>','<script>window.HIKJ_SUPABASE_PUBLISHABLE_KEY='+value+';</script>\n</body>',1)
+          p.write_text(s,encoding='utf-8')
+
+          p=Path('supabase/functions/admin-api/index.ts'); s=p.read_text(encoding='utf-8')
+          anchor="    if(action==='report'){"
+          if "action==='distribution_history'" not in s:
+              block="""    if(action==='distribution_history'){
+      const n=limitOf(url.searchParams.get('limit'),500,2000),search=(url.searchParams.get('q')||'').trim().toLowerCase();
+      const from=url.searchParams.get('from'),to=url.searchParams.get('to'),security=(url.searchParams.get('security')||'').trim().toLowerCase(),status=(url.searchParams.get('status')||'').trim();
+      let q=sb.from('package_distribution_history').select('*').order('distributed_at',{ascending:false}).limit(n);
+      if(from) q=q.gte('distributed_at',from); if(to) q=q.lt('distributed_at',to); if(status) q=q.eq('status',status); if(security) q=q.ilike('security_hand_over',`%${security}%`);
+      const {data,error}=await q; if(error) throw error;
+      const data2=(data||[]).filter(x=>!search||[x.package_number,x.recipient_name,x.registered_recipient_name,x.company_name,x.courier_name,x.item_type,x.security_hand_over].some(v=>String(v||'').toLowerCase().includes(search)));
+      return json(req,{data:data2});
+    }
+
+"""
+              if anchor not in s: raise SystemExit('admin-api anchor not found')
+              s=s.replace(anchor,block+anchor,1)
+          p.write_text(s,encoding='utf-8')
+
+          p=Path('supabase/config.toml'); s=p.read_text(encoding='utf-8')
+          if '[functions.package-distribution]' not in s: s+='\n[functions.package-distribution]\nverify_jwt = false\n'
+          p.write_text(s,encoding='utf-8')
+          PY
+
+      - name: Deploy Supabase Edge Functions
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+        run: supabase functions deploy --project-ref "$SUPABASE_PROJECT_ID" --use-api
+
+      - name: Commit generated integration changes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html admin/index.html supabase/functions/admin-api/index.ts supabase/config.toml
+          git diff --cached --quiet || git commit -m 'Integrate Package Distribution UI and API'
+          git push
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
