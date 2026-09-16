@@ -107,13 +107,15 @@
     results.innerHTML = '<div class="pd-empty">Searching…</div>';
     try {
       const q = encodeURIComponent(document.querySelector('#pdSearch')?.value.trim() || '');
-      const data = await callApi(`?q=${q}&limit=50`);
-      if (!data.data?.length) { results.innerHTML = '<div class="pd-empty">No package available for distribution.</div>'; return; }
-      results.innerHTML = data.data.map((p, i) => `<button class="pd-result" data-pd-index="${i}">
-        <div><b>${esc(p.submission_id)}</b><span>${esc(p.recipient_name || '—')} · ${esc(p.company_name || '—')}</span></div>
+      const response = await callApi(`?q=${q}&limit=50`);
+      // Support both current and previous function response shapes.
+      const items = Array.isArray(response?.data) ? response.data : (Array.isArray(response?.packages) ? response.packages : []);
+      if (!items.length) { results.innerHTML = '<div class="pd-empty">No package available for distribution.</div>'; return; }
+      results.innerHTML = items.map((p, i) => `<button class="pd-result" data-pd-index="${i}">
+        <div><b>${esc(p.submission_id || p.package_number)}</b><span>${esc(p.recipient_name || '—')} · ${esc(p.company_name || '—')}</span></div>
         <div><span>${esc(p.item_type || '—')} · Qty ${esc(p.item_count ?? '—')}</span><span>${esc(p.courier_name || '—')} · ${fmt(p.created_at)}</span></div>
         <em>READY FOR DISTRIBUTION</em></button>`).join('');
-      results._items = data.data;
+      results._items = items;
       results.querySelectorAll('.pd-result').forEach(btn => btn.onclick = () => selectPackage(results._items[Number(btn.dataset.pdIndex)]));
     } catch (e) { results.innerHTML = `<div class="pd-empty pd-error">${esc(e.message)}</div>`; }
   }
@@ -122,7 +124,7 @@
     selected = pkg;
     const target = document.querySelector('#pdSelected');
     target.innerHTML = `<div class="pd-selected"><div class="pd-selected-head"><b>Selected Package</b><span>READY FOR DISTRIBUTION</span></div>
-      <div class="pd-detail"><div><small>Package Number</small><b>${esc(pkg.submission_id)}</b></div><div><small>Recipient</small><b>${esc(pkg.recipient_name || '—')}</b></div><div><small>Company</small><b>${esc(pkg.company_name || '—')}</b></div><div><small>Item</small><b>${esc(pkg.item_type || '—')} · Qty ${esc(pkg.item_count ?? '—')}</b></div><div><small>Courier</small><b>${esc(pkg.courier_name || '—')}</b></div><div><small>Registered</small><b>${fmt(pkg.created_at)}</b></div></div>
+      <div class="pd-detail"><div><small>Package Number</small><b>${esc(pkg.submission_id || pkg.package_number)}</b></div><div><small>Recipient</small><b>${esc(pkg.recipient_name || '—')}</b></div><div><small>Company</small><b>${esc(pkg.company_name || '—')}</b></div><div><small>Item</small><b>${esc(pkg.item_type || '—')} · Qty ${esc(pkg.item_count ?? '—')}</b></div><div><small>Courier</small><b>${esc(pkg.courier_name || '—')}</b></div><div><small>Registered</small><b>${fmt(pkg.created_at)}</b></div></div>
       <button class="submit" id="pdDistribute">DISTRIBUTE PACKAGE</button></div>`;
     target.querySelector('#pdDistribute').onclick = openDistributionForm;
     target.scrollIntoView({ behavior:'smooth', block:'nearest' });
@@ -131,7 +133,7 @@
   function openDistributionForm() {
     const target = document.querySelector('#pdSelected');
     target.innerHTML = `<div class="pd-selected"><div class="pd-selected-head"><b>Package Hand-Over</b><span>DISTRIBUTION</span></div>
-      <div class="pd-detail"><div><small>Package Number</small><b>${esc(selected.submission_id)}</b></div><div><small>Registered Recipient</small><b>${esc(selected.recipient_name || '—')}</b></div></div>
+      <div class="pd-detail"><div><small>Package Number</small><b>${esc(selected.submission_id || selected.package_number)}</b></div><div><small>Registered Recipient</small><b>${esc(selected.recipient_name || '—')}</b></div></div>
       <label>Package Owner / Recipient Name</label><input id="pdRecipient" value="${esc(selected.recipient_name || '')}" placeholder="Recipient / Representative Name" autocomplete="off">
       <small class="pd-hint">Defaulted to the registered recipient. Edit if the package is received by a representative or delegate.</small>
       <label>Security Hand Over *</label><input id="pdSecurity" placeholder="Enter Security Hand Over" required>
