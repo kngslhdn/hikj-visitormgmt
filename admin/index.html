@@ -3,191 +3,34 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>HIKJ Visitor Management | Admin Console</title>
+<title>HIKJ Visitor Management | Security Admin</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-:root{--navy:#071a30;--navy2:#102d4b;--gold:#c99a3d;--bg:#f4f6f9;--card:#fff;--line:#e5e7eb;--muted:#64748b;--text:#111827;--green:#15803d;--red:#b91c1c;--amber:#b45309;--blue:#075985;--purple:#7e22ce}
-*{box-sizing:border-box}html,body{margin:0;min-height:100%;font:14px Arial,sans-serif;color:var(--text);background:var(--bg)}button,input,select{font:inherit}.hidden{display:none!important}
+:root{--navy:#071a30;--navy2:#102d4b;--gold:#c99a3d;--bg:#f4f6f9;--card:#fff;--line:#e5e7eb;--muted:#64748b;--text:#111827;--red:#b91c1c}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;font:14px Arial,sans-serif;color:var(--text);background:var(--bg)}button,input{font:inherit}.hidden{display:none!important}
 .login{min-height:100vh;display:grid;place-items:center;padding:20px;background:radial-gradient(circle at 50% 0,#173c64,#071a30 68%)}
-.login-card{width:min(430px,100%);background:#fff;border-radius:20px;padding:34px;box-shadow:0 25px 80px #0007}.logo{width:120px;height:76px;object-fit:contain;display:block;margin:0 auto 12px;filter:brightness(0)}.brand{text-align:center;color:var(--navy);font-weight:700;font-size:20px}.brand small{display:block;color:var(--muted);font-weight:400;font-size:11px;margin-top:5px;letter-spacing:1px}.login-card h1{font-size:22px;margin:28px 0 6px}.login-card p{color:var(--muted);font-size:12px;margin:0 0 22px}.field{margin:15px 0}.field label{display:block;font-size:12px;font-weight:600;margin-bottom:6px}.field input{width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;outline:none}.field input:focus{border-color:#94a3b8;box-shadow:0 0 0 3px #071a3012}.btn{border:0;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer;transition:.15s}.btn:disabled{opacity:.55;cursor:not-allowed}.primary{background:var(--navy);color:#fff}.primary:hover{background:var(--navy2)}.secondary,.refresh{background:#fff;border:1px solid var(--line);color:var(--navy)}.secondary:hover,.refresh:hover{background:#f8fafc}.login-btn{width:100%;padding:13px}.error{color:var(--red);font-size:12px;min-height:18px;margin-top:11px;white-space:pre-wrap}
-.top{height:70px;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 28px}.top-title{font-weight:700;font-size:16px}.top-title small{display:block;font-weight:400;opacity:.6;font-size:10px;margin-top:3px;letter-spacing:1px}.user{display:flex;align-items:center;gap:12px}.user-info{text-align:right;font-size:11px}.user-info small{display:block;opacity:.6;margin-top:3px}.logout{background:#fff1;color:#fff;border:1px solid #fff3}.logout:hover{background:#fff2}
-.layout{display:grid;grid-template-columns:225px 1fr;min-height:calc(100vh - 70px)}aside{background:#fff;border-right:1px solid var(--line);padding:18px 13px}.nav{display:block;width:100%;text-align:left;background:transparent;color:#475569;margin:4px 0}.nav:hover,.nav.active{background:#eef3f8;color:var(--navy)}main{padding:28px;min-width:0}.section{display:none}.section.active{display:block}.head{display:flex;align-items:flex-end;justify-content:space-between;gap:15px;margin-bottom:20px}.head h1{margin:0;font-size:25px}.head p{margin:6px 0 0;color:var(--muted);font-size:12px}.tools{display:flex;gap:8px;flex-wrap:wrap}
-.cards{display:grid;grid-template-columns:repeat(6,minmax(125px,1fr));gap:12px;margin-bottom:18px}.stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}.stat-label{color:var(--muted);font-size:10px;font-weight:700;letter-spacing:.2px}.stat-value{font-size:25px;font-weight:700;margin-top:7px}.green .stat-value{color:var(--green)}.amber .stat-value{color:var(--amber)}.blue .stat-value{color:var(--blue)}
-.package-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:0 0 18px}.package-cards .stat-value{font-size:24px}.distributed .stat-value{color:var(--green)}.ready .stat-value{color:var(--amber)}
-.grid{display:grid;grid-template-columns:1.35fr .65fr;gap:18px}.card{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}.card-head{padding:15px 17px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:10px}.card-head h2{margin:0;font-size:14px}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:760px}th,td{padding:11px 12px;border-bottom:1px solid #eef0f2;text-align:left;font-size:11px;white-space:nowrap}th{background:#fafbfc;color:var(--muted);font-weight:700}tbody tr:hover{background:#fafcff}.badge{display:inline-block;padding:4px 8px;border-radius:99px;font-size:9px;font-weight:700}.entry{background:#dcfce7;color:#166534}.exit{background:#e0f2fe;color:#075985}.key{background:#fef3c7;color:#92400e}.package{background:#f3e8ff;color:#7e22ce}.status{background:#ecfdf5;color:#166534}.ready-badge{background:#fef3c7;color:#92400e}.cancelled{background:#fee2e2;color:#991b1b}.inside-list{max-height:430px;overflow:auto}.inside-row{padding:13px 16px;border-bottom:1px solid #eef0f2}.inside-row strong{font-size:12px}.inside-row span{display:block;color:var(--muted);font-size:10px;margin-top:4px}.empty{padding:36px;text-align:center;color:var(--muted);font-size:12px}.filters{display:grid;grid-template-columns:1.5fr 1fr 1fr 1fr auto;gap:9px;padding:14px 17px;border-bottom:1px solid var(--line)}.filters input,.filters select{padding:9px;border:1px solid var(--line);border-radius:9px;outline:none;font-size:11px;background:#fff}.filters input:focus,.filters select:focus{border-color:#94a3b8}.photo{width:42px;height:42px;object-fit:cover;border-radius:7px;border:1px solid var(--line);background:#f8fafc}.count{background:#eef3f8;color:var(--navy);padding:4px 8px;border-radius:99px;font-size:9px;font-weight:700}.footer-note{padding:14px 17px;color:var(--muted);font-size:11px;border-top:1px solid var(--line)}.toast{position:fixed;right:20px;bottom:20px;background:var(--navy);color:#fff;padding:12px 16px;border-radius:10px;box-shadow:0 10px 30px #0003;font-size:12px;z-index:20;max-width:min(420px,calc(100% - 40px))}
-@media(max-width:1100px){.cards{grid-template-columns:repeat(3,1fr)}.package-cards{grid-template-columns:repeat(3,1fr)}.grid{grid-template-columns:1fr}}
-@media(max-width:760px){.layout{grid-template-columns:1fr}aside{display:flex;overflow:auto;border-right:0;border-bottom:1px solid var(--line);padding:8px}.nav{width:auto;white-space:nowrap}.top{padding:0 15px}.user-info{display:none}main{padding:17px}.filters{grid-template-columns:1fr 1fr}.filters input:first-child{grid-column:1/-1}.head{align-items:flex-start;flex-direction:column}.package-cards{grid-template-columns:1fr}}
-@media(max-width:480px){.cards{grid-template-columns:1fr 1fr}.filters{grid-template-columns:1fr}.filters input:first-child{grid-column:auto}}
+.login-card{width:min(430px,100%);background:#fff;border-radius:18px;padding:34px;box-shadow:0 25px 80px #0007}.logo{width:120px;height:76px;object-fit:contain;display:block;margin:0 auto 12px;filter:brightness(0)}.brand{text-align:center;color:var(--navy);font-weight:700;font-size:20px}.brand small{display:block;color:var(--muted);font-weight:400;font-size:10px;margin-top:5px;letter-spacing:1px}.login-card h1{font-size:22px;margin:28px 0 6px}.login-card p{color:var(--muted);font-size:12px;margin:0 0 22px}.field{margin:15px 0}.field label{display:block;font-size:12px;font-weight:700;margin-bottom:6px}.field input{width:100%;padding:12px;border:1px solid var(--line);border-radius:9px;outline:none}.login-btn{width:100%;padding:13px;border:0;border-radius:9px;background:var(--navy);color:#fff;font-weight:700;cursor:pointer}.login-btn:disabled{opacity:.55}.error{color:var(--red);font-size:12px;min-height:18px;margin-top:10px}
+.top{height:70px;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 28px}.top-title{font-weight:700;font-size:16px}.top-title small{display:block;font-weight:400;opacity:.6;font-size:10px;margin-top:3px;letter-spacing:1px}.user{display:flex;align-items:center;gap:12px}.user-info{text-align:right;font-size:11px}.user-info small{display:block;opacity:.6;margin-top:3px}.logout{background:#fff1;color:#fff;border:1px solid #fff3;border-radius:8px;padding:8px 12px;cursor:pointer}
 </style>
 </head>
 <body>
-<section id="login" class="login">
-  <div class="login-card">
-    <img class="logo" src="https://upload.wikimedia.org/wikipedia/commons/6/60/Hotel_Indonesia_Kempinski_Jakarta_logo.svg" alt="Hotel Indonesia Kempinski Jakarta">
-    <div class="brand">HIKJ Visitor Management<small>SECURITY ADMINISTRATION CONSOLE</small></div>
-    <h1>Admin Sign In</h1>
-    <p>Authorized HIKJ Security administrators only.</p>
-    <form id="loginForm">
-      <div class="field"><label>Email</label><input id="email" type="email" autocomplete="username" required></div>
-      <div class="field"><label>Password</label><input id="password" type="password" autocomplete="current-password" required></div>
-      <button id="loginBtn" class="btn primary login-btn" type="submit">SIGN IN</button>
-      <div id="loginError" class="error"></div>
-    </form>
-  </div>
-</section>
-
-<section id="app" class="hidden">
-<header class="top">
-  <div class="top-title">HIKJ Visitor Management<small>SECURITY ADMIN CONSOLE</small></div>
-  <div class="user"><div class="user-info"><b id="userName">Admin</b><small id="userRole">—</small></div><button class="btn logout" id="logout">Sign Out</button></div>
-</header>
-<div class="layout">
-<aside>
-  <button class="btn nav active" data-section="dashboard">Dashboard</button>
-  <button class="btn nav" data-section="visitors">Visitor Monitoring</button>
-  <button class="btn nav" data-section="keys">Key Monitoring</button>
-  <button class="btn nav" data-section="packages">Packages</button>
-  <button class="btn nav" data-section="distribution">Package Distribution</button>
-  <button class="btn nav" data-section="reports">Reports</button>
-</aside>
-<main>
-<section id="dashboard" class="section active">
-  <div class="head"><div><h1>Dashboard</h1><p>Live operational overview for HIKJ Security.</p></div><button class="btn refresh" id="refresh">↻ Refresh</button></div>
-  <div class="cards">
-    <div class="stat"><div class="stat-label">TOTAL VISITORS</div><div class="stat-value" id="sVisitors">—</div></div>
-    <div class="stat green"><div class="stat-label">TODAY ENTRY</div><div class="stat-value" id="sEntry">—</div></div>
-    <div class="stat blue"><div class="stat-label">TODAY EXIT</div><div class="stat-value" id="sExit">—</div></div>
-    <div class="stat green"><div class="stat-label">CURRENTLY INSIDE</div><div class="stat-value" id="sInside">—</div></div>
-    <div class="stat amber"><div class="stat-label">OUTSTANDING KEYS</div><div class="stat-value" id="sKeys">—</div></div>
-    <div class="stat"><div class="stat-label">PACKAGES TODAY</div><div class="stat-value" id="sPackage">—</div></div>
-  </div>
-  <div class="grid">
-    <div class="card"><div class="card-head"><h2>Recent Activity</h2><span class="count" id="activityCount">0</span></div><div class="table-wrap"><table><thead><tr><th>Submission ID</th><th>Visitor</th><th>Company</th><th>Type</th><th>Status</th><th>Time</th></tr></thead><tbody id="activity"></tbody></table></div></div>
-    <div class="card"><div class="card-head"><h2>Currently Inside</h2><span class="badge entry" id="insideCount">0</span></div><div class="inside-list" id="insideList"></div></div>
-  </div>
-</section>
-
-<section id="visitors" class="section">
-  <div class="head"><div><h1>Visitor Monitoring</h1><p>Search visitor entry history and matched exits.</p></div><button class="btn refresh" id="refreshVisitors">↻ Refresh</button></div>
-  <div class="card">
-    <div class="filters"><input id="visitorSearch" placeholder="Name, phone, company, pass or location"><input id="visitorFrom" type="date"><input id="visitorTo" type="date"><button class="btn primary" id="searchVisitors">Search</button><button class="btn secondary" id="clearVisitors">Clear</button></div>
-    <div class="table-wrap"><table><thead><tr><th>Name</th><th>Phone</th><th>Company</th><th>Category</th><th>Location</th><th>Pass</th><th>Entry</th><th>Exit</th><th>Status</th></tr></thead><tbody id="visitorTable"></tbody></table></div>
-    <div class="footer-note" id="visitorNote">Search results are loaded from the authenticated admin API.</div>
-  </div>
-</section>
-
-<section id="keys" class="section">
-  <div class="head"><div><h1>Key Monitoring</h1><p>Outstanding keys requiring follow-up.</p></div><button class="btn refresh" id="refreshKeys">↻ Refresh</button></div>
-  <div class="card"><div class="card-head"><h2>Outstanding Keys</h2><button class="btn secondary" data-export="keys">Export CSV</button></div><div class="table-wrap"><table><thead><tr><th>Borrower</th><th>Department</th><th>Key</th><th>Description</th><th>Qty</th><th>Borrowed</th><th>Officer</th></tr></thead><tbody id="keyTable"></tbody></table></div></div>
-</section>
-
-<section id="packages" class="section">
-  <div class="head"><div><h1>Package Monitoring</h1><p>Registration and live distribution status.</p></div><button class="btn refresh" id="refreshPackages">↻ Refresh</button></div>
-  <div class="package-cards">
-    <div class="stat"><div class="stat-label">TOTAL PACKAGES</div><div class="stat-value" id="pTotal">—</div></div>
-    <div class="stat ready"><div class="stat-label">READY FOR DISTRIBUTION</div><div class="stat-value" id="pReady">—</div></div>
-    <div class="stat distributed"><div class="stat-label">DISTRIBUTED TODAY</div><div class="stat-value" id="pDistributed">—</div></div>
-  </div>
-  <div class="card"><div class="card-head"><h2>Recent Packages</h2><button class="btn secondary" data-export="packages">Export CSV</button></div><div class="table-wrap"><table><thead><tr><th>Photo</th><th>Package Number</th><th>Courier</th><th>Company</th><th>Type</th><th>Qty</th><th>Recipient</th><th>Status</th><th>Distributed To</th><th>Security</th><th>Distributed At</th><th>Registered At</th></tr></thead><tbody id="packageTable"></tbody></table></div><div class="footer-note" id="packageNote">Status is linked directly to the package distribution record.</div></div>
-</section>
-
-<section id="distribution" class="section">
-  <div class="head"><div><h1>Package Distribution</h1><p>Distribution history and hand-over audit trail.</p></div><button class="btn refresh" id="refreshDistribution">↻ Refresh</button></div>
-  <div class="card"><div class="filters"><input id="distributionSearch" placeholder="Package number, recipient, courier, company, security"><input id="distributionFrom" type="date"><input id="distributionTo" type="date"><select id="distributionStatus"><option value="">All Status</option><option value="DISTRIBUTED">DISTRIBUTED</option></select><button class="btn primary" id="distributionSearchBtn">Search</button></div><div class="table-wrap"><table><thead><tr><th>Package Number</th><th>Registered Recipient</th><th>Handed To</th><th>Company</th><th>Security Hand Over</th><th>Registered At</th><th>Distributed At</th><th>Status</th></tr></thead><tbody id="distributionTable"></tbody></table></div><div class="footer-note" id="distributionNote">Distribution records are immutable historical records.</div></div>
-</section>
-
-<section id="reports" class="section">
-  <div class="head"><div><h1>Reports</h1><p>Filter operational activity and export CSV.</p></div><div class="tools"><button class="btn secondary" id="runReport">Run Report</button><button class="btn secondary" data-export="report">Export CSV</button></div></div>
-  <div class="card">
-    <div class="filters"><input id="reportFrom" type="date"><input id="reportTo" type="date"><select id="reportType"><option value="">All activity</option><option value="visitor_entry">Visitor Entry</option><option value="visitor_exit">Visitor Exit</option><option value="key_borrowing">Key Borrowing</option><option value="key_return">Key Return</option><option value="package_registration">Package Registration</option></select></div>
-    <div class="table-wrap"><table><thead><tr><th>Submission ID</th><th>Visitor</th><th>Company</th><th>Type</th><th>Status</th><th>Submitted</th></tr></thead><tbody id="reportTable"></tbody></table></div>
-    <div class="footer-note">Read-only reports. Data access is enforced by the authenticated admin Edge Function.</div>
-  </div>
-</section>
-</main></div></section>
-<div id="toast" class="toast hidden"></div>
+<section id="login" class="login"><div class="login-card">
+<img class="logo" src="https://upload.wikimedia.org/wikipedia/commons/6/60/Hotel_Indonesia_Kempinski_Jakarta_logo.svg" alt="Hotel Indonesia Kempinski Jakarta">
+<div class="brand">HIKJ Visitor Management<small>SECURITY ADMINISTRATION CONSOLE</small></div>
+<h1>Admin Sign In</h1><p>Authorized HIKJ Security administrators only.</p>
+<form id="loginForm"><div class="field"><label>Email</label><input id="email" type="email" autocomplete="username" required></div><div class="field"><label>Password</label><input id="password" type="password" autocomplete="current-password" required></div><button id="loginBtn" class="login-btn" type="submit">SIGN IN</button><div id="loginError" class="error"></div></form>
+</div></section>
+<section id="app" class="hidden"><header class="top"><div class="top-title">HIKJ Visitor Management<small>SECURITY ADMIN CONSOLE V2</small></div><div class="user"><div class="user-info"><b id="userName">Admin</b><small id="userRole">—</small></div><button id="logout" class="logout">Sign Out</button></div></header></section>
 <script>
 const SUPABASE_URL='https://hmqgmusellcetakoalva.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY='sb_publishable_J6P-baCAZOoVxj2rHBZMkA_Ux4U5_mQ';
-const ADMIN_API=SUPABASE_URL+'/functions/v1/admin-api';
 const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
-const $=id=>document.getElementById(id);
-const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
-const fmt=v=>v?new Date(v).toLocaleString('en-GB',{dateStyle:'short',timeStyle:'short'}):'—';
-const typeLabel=t=>({visitor_entry:'Visitor Entry',visitor_exit:'Visitor Exit',key_borrowing:'Key Borrowing',key_return:'Key Return',package_registration:'Package Registration'})[t]||t||'—';
-const typeClass=t=>t==='visitor_entry'?'entry':t==='visitor_exit'?'exit':t&&t.includes('key')?'key':'package';
-const badge=t=>`<span class="badge ${typeClass(t)}">${esc(typeLabel(t))}</span>`;
-const statusBadge=s=>`<span class="badge ${s==='cancelled'?'cancelled':'status'}">${esc(s||'—')}</span>`;
-const packageStatus=s=>s==='DISTRIBUTED'?'<span class="badge status">DISTRIBUTED</span>':'<span class="badge ready-badge">READY FOR DISTRIBUTION</span>';
-let cache={activity:[],inside:[],keys:[],packages:[],report:[],visitors:[],distribution:[]};
-function toast(m){$('toast').textContent=m;$('toast').classList.remove('hidden');clearTimeout(window.__toast);window.__toast=setTimeout(()=>$('toast').classList.add('hidden'),3200)}
-function emptyRow(id,cols,msg='No records found.'){ $(id).innerHTML=`<tr><td colspan="${cols}" class="empty">${esc(msg)}</td></tr>` }
-async function api(action,params={}){
-  const {data:{session}}=await sb.auth.getSession();
-  if(!session)throw Error('Session expired. Please sign in again.');
-  const q=new URLSearchParams({action,...params});
-  const r=await fetch(ADMIN_API+'?'+q.toString(),{headers:{Authorization:'Bearer '+session.access_token}});
-  let b={};try{b=await r.json()}catch{}
-  if(!r.ok)throw Error(b.error||`Admin API HTTP ${r.status}`);
-  return b;
-}
-async function loadDashboard(){
-  const [s,a,i,k,p]=await Promise.all([api('summary'),api('activity',{limit:100}),api('inside',{limit:500}),api('keys',{limit:500}),api('packages',{limit:200})]);
-  cache={...cache,activity:a.data||[],inside:i.data||[],keys:k.data||[],packages:p.data||[]};
-  const x=s.summary||{};
-  $('sVisitors').textContent=x.total_visitors??0;$('sEntry').textContent=x.today_entry??0;$('sExit').textContent=x.today_exit??0;$('sInside').textContent=x.currently_inside??0;$('sKeys').textContent=x.outstanding_keys??0;$('sPackage').textContent=x.today_packages??0;
-  $('activityCount').textContent=cache.activity.length;$('insideCount').textContent=cache.inside.length;
-  $('activity').innerHTML=cache.activity.length?cache.activity.map(r=>`<tr><td>${esc(r.submission_id)}</td><td>${esc(r.visitor_name||'—')}</td><td>${esc(r.company_name||'—')}</td><td>${badge(r.submission_type)}</td><td>${statusBadge(r.status)}</td><td>${fmt(r.submitted_at)}</td></tr>`).join(''):'';
-  if(!cache.activity.length)emptyRow('activity',6);
-  $('insideList').innerHTML=cache.inside.length?cache.inside.map(r=>`<div class="inside-row"><strong>${esc(r.full_name)}</strong><span>${esc(r.company_name||'—')} · ${esc(r.work_location||'—')}</span><span>Pass ${esc(r.pass_vest_number||'—')} · Entry ${fmt(r.entry_at)}</span></div>`).join(''):`<div class="empty">No visitors currently inside.</div>`;
-}
-async function loadVisitors(){
-  const params={limit:2000,q:$('visitorSearch').value.trim(),from:$('visitorFrom').value,to:$('visitorTo').value?$('visitorTo').value+'T23:59:59':''};
-  const r=await api('visitors',params);cache.visitors=r.data||[];
-  $('visitorNote').textContent=`${cache.visitors.length} visitor record${cache.visitors.length===1?'':'s'} found.`;
-  $('visitorTable').innerHTML=cache.visitors.length?cache.visitors.map(e=>{const v=e.visitor||{},x=e.exit;return `<tr><td>${esc(v.full_name||'—')}</td><td>${esc(v.phone||'—')}</td><td>${esc(v.company_name||'—')}</td><td>${esc(v.category||'—')}</td><td>${esc(e.work_location||'—')}</td><td>${esc(e.pass_vest_number||'—')}</td><td>${fmt(e.entry_at)}</td><td>${fmt(x?.exit_at)}</td><td>${x?'<span class="badge exit">EXITED</span>':'<span class="badge entry">INSIDE</span>'}</td></tr>`}).join(''):'';
-  if(!cache.visitors.length)emptyRow('visitorTable',9);
-}
-async function loadKeys(){const r=await api('keys',{limit:1000});cache.keys=r.data||[];$('keyTable').innerHTML=cache.keys.length?cache.keys.map(k=>`<tr><td>${esc(k.borrower_name)}</td><td>${esc(k.department)}</td><td>${esc(k.key_number)}</td><td>${esc(k.key_description||'—')}</td><td>${esc(k.quantity)}</td><td>${fmt(k.borrowed_at)}</td><td>${esc(k.security_officer_name)}</td></tr>`).join(''):'';if(!cache.keys.length)emptyRow('keyTable',7,'No outstanding keys.');}
-async function loadPackages(){
-  const r=await api('packages',{limit:500});cache.packages=r.data||[];
-  const s=await api('summary');const x=s.summary||{};
-  $('pTotal').textContent=x.total_packages??cache.packages.length;$('pReady').textContent=x.ready_packages??0;$('pDistributed').textContent=x.distributed_packages_today??0;
-  $('packageTable').innerHTML=cache.packages.length?cache.packages.map(p=>`<tr><td>${p.photo_url?`<img class="photo" src="${esc(p.photo_url)}" alt="Package photo" loading="lazy">`:'—'}</td><td><b>${esc(p.submission_id||'—')}</b></td><td>${esc(p.courier_name)}</td><td>${esc(p.company_name)}</td><td>${esc(p.item_type)}</td><td>${esc(p.item_count)}</td><td>${esc(p.recipient_name)}</td><td>${packageStatus(p.distribution_status)}</td><td>${esc(p.distributed_to||'—')}</td><td>${esc(p.distribution_security_hand_over||'—')}</td><td>${fmt(p.distributed_at)}</td><td>${fmt(p.created_at)}</td></tr>`).join(''):'';
-  $('packageNote').textContent=`${cache.packages.length} package registration${cache.packages.length===1?'':'s'} loaded. Distribution status is linked to the live distribution record.`;
-  if(!cache.packages.length)emptyRow('packageTable',12,'No package registrations found.');
-}
-async function loadDistribution(){
-  const params={limit:2000,q:$('distributionSearch').value.trim(),from:$('distributionFrom').value,to:$('distributionTo').value?$('distributionTo').value+'T23:59:59':'',status:$('distributionStatus').value};
-  const r=await api('distribution_history',params);cache.distribution=r.data||[];
-  $('distributionTable').innerHTML=cache.distribution.length?cache.distribution.map(x=>`<tr><td><b>${esc(x.package_number)}</b></td><td>${esc(x.registered_recipient_name||'—')}</td><td>${esc(x.recipient_name||'—')}</td><td>${esc(x.company_name||'—')}</td><td>${esc(x.security_hand_over||'—')}</td><td>${fmt(x.registered_at)}</td><td>${fmt(x.distributed_at)}</td><td><span class="badge status">${esc(x.status)}</span></td></tr>`).join(''):'';
-  $('distributionNote').textContent=`${cache.distribution.length} distribution record${cache.distribution.length===1?'':'s'} loaded.`;
-  if(!cache.distribution.length)emptyRow('distributionTable',8,'No distribution records found.');
-}
-async function loadReport(){const r=await api('report',{limit:5000,from:$('reportFrom').value,to:$('reportTo').value?$('reportTo').value+'T23:59:59':'',type:$('reportType').value});cache.report=r.data||[];$('reportTable').innerHTML=cache.report.length?cache.report.map(a=>`<tr><td>${esc(a.submission_id)}</td><td>${esc(a.visitor_name||'—')}</td><td>${esc(a.company_name||'—')}</td><td>${badge(a.submission_type)}</td><td>${statusBadge(a.status)}</td><td>${fmt(a.submitted_at)}</td></tr>`).join(''):'';if(!cache.report.length)emptyRow('reportTable',6,'No report records found.');}
-function csvCell(v){return '"'+String(v??'').replace(/"/g,'""')+'"'}
-function downloadCSV(rows,columns,name){const csv=[columns.map(c=>csvCell(c[1])).join(','),...rows.map(r=>columns.map(c=>csvCell(typeof c[0]==='function'?c[0](r):r[c[0]])).join(','))].join('\n');const blob=new Blob([csv],{type:'text/csv;charset=utf-8'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500)}
-function exportData(kind){if(kind==='keys')downloadCSV(cache.keys,[['borrower_name','Borrower'],['department','Department'],['key_number','Key'],['key_description','Description'],['quantity','Qty'],['borrowed_at','Borrowed'],['security_officer_name','Officer']],'hikj-outstanding-keys.csv');if(kind==='packages')downloadCSV(cache.packages,[['submission_id','Package Number'],['courier_name','Courier'],['company_name','Company'],['item_type','Type'],['item_count','Qty'],['recipient_name','Recipient'],[r=>r.distribution_status||'READY FOR DISTRIBUTION','Distribution Status'],['distributed_to','Distributed To'],['distribution_security_hand_over','Security Hand Over'],['distributed_at','Distributed At'],['created_at','Registered At']],'hikj-packages.csv');if(kind==='report')downloadCSV(cache.report,[['submission_id','Submission ID'],['visitor_name','Visitor'],['company_name','Company'],['submission_type','Type'],['status','Status'],['submitted_at','Submitted']],'hikj-report.csv');toast('CSV export prepared.')}
-async function showSection(id){document.querySelectorAll('.section').forEach(s=>s.classList.toggle('active',s.id===id));document.querySelectorAll('.nav').forEach(n=>n.classList.toggle('active',n.dataset.section===id));try{if(id==='dashboard')await loadDashboard();if(id==='visitors')await loadVisitors();if(id==='keys')await loadKeys();if(id==='packages')await loadPackages();if(id==='distribution')await loadDistribution();if(id==='reports')await loadReport()}catch(e){toast(e.message||'Unable to load data.');console.error(e)}}
-async function enterApp(session){
-  const r=await api('summary');
-  $('login').classList.add('hidden');$('app').classList.remove('hidden');$('userName').textContent=r.profile?.full_name||session.user.email||'Admin';$('userRole').textContent=r.profile?.role||'ADMIN';
-  await loadDashboard();
-}
-$('loginForm').addEventListener('submit',async ev=>{ev.preventDefault();const b=$('loginBtn');b.disabled=true;b.textContent='SIGNING IN…';$('loginError').textContent='';try{const {data,error}=await sb.auth.signInWithPassword({email:$('email').value.trim(),password:$('password').value});if(error)throw error;if(!data.session)throw Error('Supabase returned no session.');await enterApp(data.session)}catch(e){console.error('HIKJ LOGIN ERROR',e);$('loginError').textContent=(e.name?e.name+': ':'')+(e.message||String(e))}finally{b.disabled=false;b.textContent='SIGN IN'}});
-$('logout').onclick=async()=>{await sb.auth.signOut();location.reload()};
-document.querySelectorAll('.nav').forEach(n=>n.addEventListener('click',()=>showSection(n.dataset.section)));
-$('refresh').onclick=async()=>{try{await loadDashboard();toast('Dashboard refreshed.')}catch(e){toast(e.message)}};
-$('refreshVisitors').onclick=async()=>{try{await loadVisitors();toast('Visitor list refreshed.')}catch(e){toast(e.message)}};
-$('searchVisitors').onclick=async()=>{try{await loadVisitors()}catch(e){toast(e.message)}};
-$('clearVisitors').onclick=async()=>{$('visitorSearch').value='';$('visitorFrom').value='';$('visitorTo').value='';try{await loadVisitors()}catch(e){toast(e.message)}};
-$('refreshKeys').onclick=async()=>{try{await loadKeys();toast('Key list refreshed.')}catch(e){toast(e.message)}};
-$('refreshPackages').onclick=async()=>{try{await loadPackages();toast('Package list refreshed.')}catch(e){toast(e.message)}};
-$('refreshDistribution').onclick=async()=>{try{await loadDistribution();toast('Distribution history refreshed.')}catch(e){toast(e.message)}};
-$('distributionSearchBtn').onclick=async()=>{try{await loadDistribution()}catch(e){toast(e.message)}};
-$('runReport').onclick=async()=>{try{await loadReport();toast('Report generated.')}catch(e){toast(e.message)}};
-document.querySelectorAll('[data-export]').forEach(b=>b.addEventListener('click',()=>exportData(b.dataset.export)));
-(async()=>{try{const {data:{session}}=await sb.auth.getSession();if(session)await enterApp(session)}catch(e){console.error(e);await sb.auth.signOut()}})();
+const API=SUPABASE_URL+'/functions/v1/admin-console-api';
+async function profile(session){const r=await fetch(API+'?action=summary',{headers:{apikey:SUPABASE_PUBLISHABLE_KEY,Authorization:'Bearer '+session.access_token}});const j=await r.json();if(!r.ok)throw Error(j.error||'Unable to load admin profile');document.getElementById('userName').textContent=j.profile?.full_name||session.user.email;document.getElementById('userRole').textContent=j.profile?.role||'ADMIN'}
+async function enter(session){await profile(session);document.getElementById('login').classList.add('hidden');document.getElementById('app').classList.remove('hidden')}
+document.getElementById('loginForm').addEventListener('submit',async ev=>{ev.preventDefault();const b=document.getElementById('loginBtn'),err=document.getElementById('loginError');b.disabled=true;b.textContent='SIGNING IN…';err.textContent='';try{const {data,error}=await sb.auth.signInWithPassword({email:document.getElementById('email').value.trim(),password:document.getElementById('password').value});if(error)throw error;await enter(data.session)}catch(e){err.textContent=e.message||String(e)}finally{b.disabled=false;b.textContent='SIGN IN'}});
+document.getElementById('logout').onclick=async()=>{await sb.auth.signOut();location.reload()};
+sb.auth.getSession().then(({data:{session}})=>{if(session)enter(session).catch(()=>sb.auth.signOut())});
 </script>
-</body>
-</html>
+<script src="admin-console-v2.js"></script>
+</body></html>
