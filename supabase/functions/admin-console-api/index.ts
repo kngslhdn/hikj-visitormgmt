@@ -47,7 +47,7 @@ async function getReport(req:Request,url:URL){
 async function getOverallRows(start:string,to:string|null){
   const [a,b,c,d,e,dist]=await Promise.all([
     sb.from('visitor_entries').select('submission_id,visitor_name_snapshot,company_name_snapshot,visitor_category,entry_at,work_location,pass_vest_number,security_officer_name').gte('entry_at',start).limit(5000),
-    sb.from('visitor_exits').select('submission_id,visitor_name,company_name,exit_at,security_officer_name,pass_vest_number').gte('exit_at',start).limit(5000),
+    sb.from('visitor_exits').select('submission_id,visitor_name,exit_at,security_officer_name,pass_vest_number').gte('exit_at',start).limit(5000),
     sb.from('key_borrowings').select('submission_id,borrower_name,department,key_number,key_description,quantity,security_officer_name,borrowed_at').gte('borrowed_at',start).limit(5000),
     sb.from('key_returns').select('submission_id,return_name,department,key_number,key_description,quantity,security_officer_name,returned_at').gte('returned_at',start).limit(5000),
     sb.from('package_registrations').select('submission_id,recipient_name,company_name,courier_name,item_type,item_count,security_officer_name,created_at').gte('created_at',start).limit(5000),
@@ -55,7 +55,7 @@ async function getOverallRows(start:string,to:string|null){
   ]);
   const errs=[a,b,c,d,e,dist].filter(x=>x.error);if(errs.length)throw errs[0].error;const rows:any[]=[];
   for(const x of a.data||[])if(!to||x.entry_at<to)rows.push({record_type:'visitor_entry',event_at:x.entry_at,reference:x.submission_id,person_name:x.visitor_name_snapshot,visitor_name:x.visitor_name_snapshot,company_name:x.company_name_snapshot,status:'COMPLETED',security_officer_name:x.security_officer_name});
-  for(const x of b.data||[])if(!to||x.exit_at<to)rows.push({record_type:'visitor_exit',event_at:x.exit_at,reference:x.submission_id,person_name:x.visitor_name,visitor_name:x.visitor_name,company_name:x.company_name,status:'COMPLETED',security_officer_name:x.security_officer_name});
+  for(const x of b.data||[])if(!to||x.exit_at<to)rows.push({record_type:'visitor_exit',event_at:x.exit_at,reference:x.submission_id,person_name:x.visitor_name,visitor_name:x.visitor_name,company_name:null,status:'COMPLETED',security_officer_name:x.security_officer_name});
   for(const x of c.data||[])if(!to||x.borrowed_at<to)rows.push({record_type:'key_borrowing',event_at:x.borrowed_at,reference:x.submission_id,person_name:x.borrower_name,department:x.department,key_number:x.key_number,key_description:x.key_description,quantity:x.quantity,status:'BORROWED',security_officer_name:x.security_officer_name});
   for(const x of d.data||[])if(!to||x.returned_at<to)rows.push({record_type:'key_return',event_at:x.returned_at,reference:x.submission_id,person_name:x.return_name,department:x.department,key_number:x.key_number,key_description:x.key_description,quantity:x.quantity,status:'RETURNED',security_officer_name:x.security_officer_name});
   for(const x of e.data||[])if(!to||x.created_at<to)rows.push({record_type:'package_registration',event_at:x.created_at,reference:x.submission_id,person_name:x.recipient_name,recipient_name:x.recipient_name,company_name:x.company_name,department:x.courier_name,status:'REGISTERED',security_officer_name:x.security_officer_name});
