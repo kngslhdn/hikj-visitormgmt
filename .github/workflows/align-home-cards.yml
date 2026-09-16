@@ -1,0 +1,65 @@
+name: Align Home Cards
+
+on:
+  push:
+    paths:
+      - '.github/workflows/align-home-cards.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Align card contents
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+
+          old = '.choice{width:158px;height:189px;min-height:189px;justify-self:center;border:1px solid rgba(128,174,214,.38);border-radius:18px;background:linear-gradient(145deg,rgba(27,67,106,.62),rgba(6,31,56,.82));color:#fff;padding:17px 14px 12px;text-align:center;cursor:pointer;transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease;box-shadow:inset 0 1px rgba(255,255,255,.05)}'
+          new = '.choice{width:158px;height:189px;min-height:189px;justify-self:center;display:flex;flex-direction:column;align-items:center;border:1px solid rgba(128,174,214,.38);border-radius:18px;background:linear-gradient(145deg,rgba(27,67,106,.62),rgba(6,31,56,.82));color:#fff;padding:17px 14px 12px;text-align:center;cursor:pointer;transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease;box-shadow:inset 0 1px rgba(255,255,255,.05)}'
+          if old not in s:
+              raise SystemExit('Choice CSS target not found')
+          s = s.replace(old, new, 1)
+
+          old = '.choice-icon{width:58px;height:58px;margin:0 auto 10px;border:1px solid rgba(210,228,245,.34);border-radius:50%;display:grid;place-items:center;color:var(--gold2);background:rgba(3,21,38,.5)}'
+          new = '.choice-icon{width:58px;height:58px;min-width:58px;flex:0 0 58px;margin:0 auto 10px;border:1px solid rgba(210,228,245,.34);border-radius:50%;display:grid;place-items:center;color:var(--gold2);background:rgba(3,21,38,.5)}'
+          if old not in s:
+              raise SystemExit('Icon CSS target not found')
+          s = s.replace(old, new, 1)
+
+          old = '.choice strong{display:block;font-size:1rem;line-height:1.45}'
+          new = '.choice strong{display:flex;align-items:center;justify-content:center;width:100%;min-height:46px;font-size:1rem;line-height:1.35}'
+          if old not in s:
+              raise SystemExit('Title CSS target not found')
+          s = s.replace(old, new, 1)
+
+          old = '.choice .arrow{display:block;margin-top:8px;color:var(--gold2);font-size:1.25rem;line-height:1;height:20px}'
+          new = '.choice .arrow{display:flex;align-items:center;justify-content:center;width:100%;height:22px;margin-top:auto;color:var(--gold2);font-size:1.25rem;line-height:1}'
+          if old not in s:
+              raise SystemExit('Arrow CSS target not found')
+          s = s.replace(old, new, 1)
+
+          old = '@media(max-width:520px){.shell{width:min(100% - 20px,1180px);padding-top:22px}.brand-logo{width:92px;max-height:92px}.choices{grid-template-columns:1fr;gap:11px;width:100%;margin-top:27px}.choice,.choice:last-child{grid-column:auto;max-width:none;min-height:145px;padding:18px}.choice-icon{width:58px;height:58px;margin-bottom:12px}.choice-icon svg{width:31px;height:31px}.choice .arrow{margin-top:12px}.security{letter-spacing:5px}'
+          new = '@media(max-width:520px){.shell{width:min(100% - 20px,1180px);padding-top:22px}.brand-logo{width:92px;max-height:92px}.choices{grid-template-columns:1fr;gap:11px;width:100%;margin-top:27px}.choice,.choice:last-child{grid-column:auto;max-width:none;min-height:145px;padding:18px}.choice-icon{width:58px;height:58px;margin-bottom:12px}.choice-icon svg{width:31px;height:31px}.choice .arrow{margin-top:auto}.security{letter-spacing:5px}'
+          if old not in s:
+              raise SystemExit('Mobile CSS target not found')
+          s = s.replace(old, new, 1)
+
+          p.write_text(s, encoding='utf-8')
+          PY
+
+      - name: Commit layout update
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git diff --cached --quiet && exit 0
+          git commit -m 'Align home card icons titles and arrows'
+          git push
