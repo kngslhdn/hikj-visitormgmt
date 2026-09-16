@@ -5,6 +5,7 @@ const headers=(req:Request)=>{const origin=req.headers.get('Origin')||'';return 
 const json=(req:Request,b:unknown,s=200)=>new Response(JSON.stringify(b),{status:s,headers:headers(req)});
 const sb=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 const limitOf=(v:string|null,d=100,m=5000)=>Math.max(1,Math.min(Number(v||d)||d,m));
+const like=(v:string)=>`%${v.replace(/[\\%_]/g,'\\$&')}%`;
 
 async function admin(req:Request){
   const auth=req.headers.get('Authorization')||'';
@@ -39,7 +40,12 @@ Deno.serve(async req=>{
         sb.from('submissions').select('id',{count:'exact',head:true})
       ]);
       const errs=[v,e,x,b,r,p,inside,keys,sub].filter(x=>x.error); if(errs.length) throw errs[0].error;
-      return json(req,{profile:auth.profile,summary:{total_visitors:v.count||0,today_entry:e.count||0,today_exit:x.count||0,currently_inside:inside.count||0,today_key_borrowing:b.count||0,today_key_return:r.count||0,today_packages:p.count||0,outstanding_keys:keys.count||0,total_submissions:sub.count||0}});
+
+      const {count:distributedToday,error:de}=await sb.from('package_distributions').select('id',{count:'exact',head:true}).gte('distributed_at',since.toISOString());
+      if(de) throw de;
+      const {count:ready,error:re}=await sb.from('package_registrations').select('id',{count:'exact',head:true}).not('id','in',`(select package_registration_id from package_distributions)`);
+      if(re) throw re;
+      return json(req,{profile:auth.profile,summary:{total_visitors:v.count||0,today_entry:e.count||0,today_exit:x.count||0,currently_inside:inside.count||0,today_key_borrowing:b.count||0,today_key_return:r.count||0,today_packages:p.count||0,outstanding_keys:keys.count||0,total_submissions:sub.count||0,distributed_packages_today:distributedToday||0,ready_packages:ready||0}});
     }
 
     if(action==='activity'){
@@ -58,12 +64,41 @@ Deno.serve(async req=>{
       if(error) throw error; return json(req,{data:data||[]});
     }
     if(action==='packages'){
-      const n=limitOf(url.searchParams.get('limit'),200,1000);
-      const {data,error}=await sb.from('package_registrations').select('id,submission_id,courier_name,phone,company_name,item_type,item_count,recipient_type,recipient_name,security_officer_name,photo_storage_path,created_at').order('created_at',{ascending:false}).limit(n);
+      const n=limitOf(url.searchParams.get('limit'),200,1000),search=(url.searchParams.get('q')||'').trim().toLowerCase();
+      const {data:packages,error}=await sb.from('package_registrations').select('id,submission_id,courier_name,phone,company_name,item_type,item_count,recipient_type,recipient_name,security_officer_name,photo_storage_path,created_at').order('created_at',{ascending:false}).limit(n);
       if(error) throw error;
-      const rows=data||[];
-      for(const row of rows){if(row.photo_storage_path){const s=await sb.storage.from('package-photos').createSignedUrl(row.photo_storage_path,600);if(!s.error) row.photo_url=s.data.signedUrl;}}
-      return json(req,{data:rows});
+      const rows=packages||[];
+      const ids=rows.map(x=>x.id);
+      let distributions:any[]=[];
+      if(ids.length){
+        const {data,error:de}=await sb.from('package_distributions').select('package_registration_id,recipient_name,security_hand_over,distributed_at,status').in('package_registration_id',ids);
+        if(de) throw de; distributions=data||[];
+      }
+      const dmap=new Map(distributions.map(x=>[x.package_registration_id,x]));
+      const filtered=rows.filter(row=>{
+        if(!search)return true;
+        return [row.submission_id,row.courier_name,row.phone,row.company_name,row.item_type,row.recipient_type,row.recipient_name,row.security_officer_name].some(x=>String(x||'').toLowerCase().includes(search));
+      });
+      for(const row of filtered){
+        if(row.photo_storage_path){const s=await sb.storage.from('package-photos').createSignedUrl(row.photo_storage_path,600);if(!s.error) row.photo_url=s.data.signedUrl;}
+        const d=dmap.get(row.id);
+        row.distribution_status=d?.status||'READY FOR DISTRIBUTION';
+        row.distributed_to=d?.recipient_name||null;
+        row.distribution_security_hand_over=d?.security_hand_over||null;
+        row.distributed_at=d?.distributed_at||null;
+      }
+      return json(req,{data:filtered});
+    }
+    if(action==='distribution_history'){
+      const n=limitOf(url.searchParams.get('limit'),200,5000),search=(url.searchParams.get('q')||'').trim();
+      const from=url.searchParams.get('from'),to=url.searchParams.get('to'),status=url.searchParams.get('status');
+      let q=sb.from('package_distribution_history').select('*').order('distributed_at',{ascending:false}).limit(n);
+      if(from) q=q.gte('distributed_at',from);
+      if(to) q=q.lt('distributed_at',to);
+      if(status) q=q.eq('status',status);
+      if(search){const p=like(search);q=q.or(`package_number.ilike.${p},recipient_name.ilike.${p},registered_recipient_name.ilike.${p},company_name.ilike.${p},courier_name.ilike.${p},security_hand_over.ilike.${p}`)}
+      const {data,error}=await q;if(error)throw error;
+      return json(req,{data:data||[]});
     }
     if(action==='visitors'){
       const n=limitOf(url.searchParams.get('limit'),500,2000),search=(url.searchParams.get('q')||'').trim().toLowerCase();
