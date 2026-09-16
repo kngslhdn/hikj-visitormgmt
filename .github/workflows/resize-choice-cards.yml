@@ -1,0 +1,38 @@
+name: Resize Choice Cards
+
+on:
+  push:
+    paths:
+      - '.github/workflows/resize-choice-cards.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  resize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resize choice cards
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+          old = '.choice{min-height:270px;'
+          new = '.choice{width:158px;height:189px;min-height:189px;justify-self:center;'
+          if old not in s:
+              raise SystemExit('Target CSS not found; no changes made.')
+          p.write_text(s.replace(old, new, 1), encoding='utf-8')
+          PY
+
+      - name: Commit CSS change
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git diff --cached --quiet && exit 0
+          git commit -m 'Reduce choice cards by 30%'
+          git push
