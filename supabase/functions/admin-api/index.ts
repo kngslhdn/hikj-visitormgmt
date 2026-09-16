@@ -28,7 +28,7 @@ Deno.serve(async req=>{
 
     if(action==='summary'){
       const since=new Date(); since.setHours(0,0,0,0);
-      const [v,e,x,b,r,p,inside,keys,sub]=await Promise.all([
+      const [v,e,x,b,r,p,inside,keys,sub,distAll,distToday]=await Promise.all([
         sb.from('visitors').select('id',{count:'exact',head:true}),
         sb.from('visitor_entries').select('id',{count:'exact',head:true}).gte('entry_at',since.toISOString()),
         sb.from('visitor_exits').select('id',{count:'exact',head:true}).gte('exit_at',since.toISOString()),
@@ -37,15 +37,15 @@ Deno.serve(async req=>{
         sb.from('package_registrations').select('id',{count:'exact',head:true}).gte('created_at',since.toISOString()),
         sb.from('currently_inside').select('entry_id',{count:'exact',head:true}),
         sb.from('outstanding_keys').select('borrowing_id',{count:'exact',head:true}),
-        sb.from('submissions').select('id',{count:'exact',head:true})
+        sb.from('submissions').select('id',{count:'exact',head:true}),
+        sb.from('package_distributions').select('id',{count:'exact',head:true}),
+        sb.from('package_distributions').select('id',{count:'exact',head:true}).gte('distributed_at',since.toISOString())
       ]);
-      const errs=[v,e,x,b,r,p,inside,keys,sub].filter(x=>x.error); if(errs.length) throw errs[0].error;
-
-      const {count:distributedToday,error:de}=await sb.from('package_distributions').select('id',{count:'exact',head:true}).gte('distributed_at',since.toISOString());
-      if(de) throw de;
-      const {count:ready,error:re}=await sb.from('package_registrations').select('id',{count:'exact',head:true}).not('id','in',`(select package_registration_id from package_distributions)`);
-      if(re) throw re;
-      return json(req,{profile:auth.profile,summary:{total_visitors:v.count||0,today_entry:e.count||0,today_exit:x.count||0,currently_inside:inside.count||0,today_key_borrowing:b.count||0,today_key_return:r.count||0,today_packages:p.count||0,outstanding_keys:keys.count||0,total_submissions:sub.count||0,distributed_packages_today:distributedToday||0,ready_packages:ready||0}});
+      const errs=[v,e,x,b,r,p,inside,keys,sub,distAll,distToday].filter(x=>x.error); if(errs.length) throw errs[0].error;
+      const totalPackages=await sb.from('package_registrations').select('id',{count:'exact',head:true});
+      if(totalPackages.error) throw totalPackages.error;
+      const readyPackages=Math.max((totalPackages.count||0)-(distAll.count||0),0);
+      return json(req,{profile:auth.profile,summary:{total_visitors:v.count||0,today_entry:e.count||0,today_exit:x.count||0,currently_inside:inside.count||0,today_key_borrowing:b.count||0,today_key_return:r.count||0,today_packages:p.count||0,outstanding_keys:keys.count||0,total_submissions:sub.count||0,total_packages:totalPackages.count||0,distributed_packages:distAll.count||0,distributed_packages_today:distToday.count||0,ready_packages:readyPackages}});
     }
 
     if(action==='activity'){
