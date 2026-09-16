@@ -15,4 +15,4 @@
   async function boot(){injectConfig();addUI();try{await bootAuth()}catch(e){console.warn(e)}}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
 })();
-// Package Distribution integration trigger.
+// Final Package Distribution deployment trigger.
