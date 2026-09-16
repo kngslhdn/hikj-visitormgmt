@@ -1,0 +1,78 @@
+name: Implement Package Distribution Integration
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'assets/package-distribution.js'
+      - 'supabase/functions/package-distribution/**'
+      - 'supabase/migrations/20260916090000_package_distribution.sql'
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Integrate public Security UI and admin dashboard
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          # Public page: load the distribution module and expose the publishable key to it.
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+          if 'assets/package-distribution.js' not in s:
+              s = s.replace('</body>', '<script src="assets/package-distribution.js"></script>\n</body>', 1)
+          # Read the existing publishable key from the public page without hardcoding a second copy.
+          marker = "const SUPABASE_PUBLISHABLE_KEY="
+          if marker in s and 'window.HIKJ_SUPABASE_PUBLISHABLE_KEY' not in s:
+              start = s.index(marker) + len(marker)
+              end = s.index(';', start)
+              value = s[start:end]
+              s = s.replace('</body>', f'<script>window.HIKJ_SUPABASE_PUBLISHABLE_KEY={value};</script>\n</body>', 1)
+          # Six cards on desktop, three at tablet, one on mobile.
+          s = s.replace('.choices{display:grid;grid-template-columns:repeat(5,158px);', '.choices{display:grid;grid-template-columns:repeat(6,158px);', 1)
+          s = s.replace('@media(max-width:900px){.choices{grid-template-columns:repeat(2,158px);width:324px;', '@media(max-width:900px){.choices{grid-template-columns:repeat(3,158px);width:490px;', 1)
+          p.write_text(s, encoding='utf-8')
+
+          # Admin API: add distribution history endpoint and package search status.
+          p = Path('supabase/functions/admin-api/index.ts')
+          s = p.read_text(encoding='utf-8')
+          needle = "    if(action==='report'){"
+          if "action==='distribution_history'" not in s:
+              block = """    if(action==='distribution_history'){
+      const n=limitOf(url.searchParams.get('limit'),500,2000),search=(url.searchParams.get('q')||'').trim().toLowerCase();
+      const from=url.searchParams.get('from'),to=url.searchParams.get('to'),security=(url.searchParams.get('security')||'').trim().toLowerCase(),status=(url.searchParams.get('status')||'').trim();
+      let q=sb.from('package_distribution_history').select('*').order('distributed_at',{ascending:false}).limit(n);
+      if(from) q=q.gte('distributed_at',from); if(to) q=q.lt('distributed_at',to); if(status) q=q.eq('status',status); if(security) q=q.ilike('security_hand_over',`%${security}%`);
+      const {data,error}=await q; if(error) throw error;
+      const data2=(data||[]).filter(x=>!search||[x.package_number,x.recipient_name,x.registered_recipient_name,x.company_name,x.courier_name,x.item_type,x.security_hand_over].some(v=>String(v||'').toLowerCase().includes(search)));
+      return json(req,{data:data2});
+    }
+
+"""
+              if needle not in s: raise SystemExit('admin-api report action not found')
+              s = s.replace(needle, block + needle, 1)
+          p.write_text(s, encoding='utf-8')
+
+          # Admin dashboard: add navigation and a distribution history section through a small external module.
+          p = Path('admin/index.html')
+          s = p.read_text(encoding='utf-8')
+          if 'admin-package-distribution.js' not in s:
+              s = s.replace('</body>', '<script src="admin-package-distribution.js"></script>\n</body>', 1)
+          p.write_text(s, encoding='utf-8')
+          PY
+
+      - name: Commit integration
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html admin/index.html supabase/functions/admin-api/index.ts
+          git diff --cached --quiet && exit 0
+          git commit -m 'Integrate Package Distribution into security and admin UI'
+          git push
