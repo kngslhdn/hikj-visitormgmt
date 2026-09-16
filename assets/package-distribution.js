@@ -34,10 +34,7 @@
     </button>`);
     root.addEventListener('click', ev => {
       const btn = ev.target.closest('[data-distribution-card]');
-      if (btn) {
-        ev.stopImmediatePropagation();
-        openDistribution();
-      }
+      if (btn) { ev.stopImmediatePropagation(); openDistribution(); }
     }, true);
   }
 
@@ -67,11 +64,7 @@
     document.querySelector('[data-distribution-card]')?.setAttribute('aria-pressed','true');
     panel.classList.add('visible');
     panel.innerHTML = `<div class="panel-header"><h2>Package Distribution</h2><p>Search a registered package and complete the hand-over process.</p></div>
-      <div class="pd-wrap">
-        <div id="pdAuth"></div>
-        <div id="pdMain" class="hidden"></div>
-        <div id="pdNotice" class="pd-notice"></div>
-      </div>`;
+      <div class="pd-wrap"><div id="pdAuth"></div><div id="pdMain" class="hidden"></div><div id="pdNotice" class="pd-notice"></div></div>`;
     renderAuth();
   }
 
@@ -99,8 +92,7 @@
     main.classList.remove('hidden');
     main.innerHTML = `<div class="pd-user">Authorized: <b>${esc(authSession.user?.email)}</b><button id="pdSignOut" class="pd-link">Sign Out</button></div>
       <div class="pd-search"><input id="pdSearch" placeholder="Search package number, recipient, courier, company..." autocomplete="off"><button class="submit" id="pdSearchBtn">SEARCH</button></div>
-      <div id="pdResults" class="pd-results"><div class="pd-empty">Enter a keyword or press SEARCH to find registered packages.</div></div>
-      <div id="pdSelected"></div>`;
+      <div id="pdResults" class="pd-results"><div class="pd-empty">Enter a keyword or press SEARCH to find registered packages.</div></div><div id="pdSelected"></div>`;
     document.querySelector('#pdSignOut').onclick = async () => { await client.auth.signOut(); authSession = null; renderAuth(); };
     const search = document.querySelector('#pdSearch');
     document.querySelector('#pdSearchBtn').onclick = searchPackages;
@@ -120,8 +112,7 @@
       results.innerHTML = data.data.map((p, i) => `<button class="pd-result" data-pd-index="${i}">
         <div><b>${esc(p.submission_id)}</b><span>${esc(p.recipient_name || '—')} · ${esc(p.company_name || '—')}</span></div>
         <div><span>${esc(p.item_type || '—')} · Qty ${esc(p.item_count ?? '—')}</span><span>${esc(p.courier_name || '—')} · ${fmt(p.created_at)}</span></div>
-        <em>READY FOR DISTRIBUTION</em>
-      </button>`).join('');
+        <em>READY FOR DISTRIBUTION</em></button>`).join('');
       results._items = data.data;
       results.querySelectorAll('.pd-result').forEach(btn => btn.onclick = () => selectPackage(results._items[Number(btn.dataset.pdIndex)]));
     } catch (e) { results.innerHTML = `<div class="pd-empty pd-error">${esc(e.message)}</div>`; }
@@ -141,7 +132,8 @@
     const target = document.querySelector('#pdSelected');
     target.innerHTML = `<div class="pd-selected"><div class="pd-selected-head"><b>Package Hand-Over</b><span>DISTRIBUTION</span></div>
       <div class="pd-detail"><div><small>Package Number</small><b>${esc(selected.submission_id)}</b></div><div><small>Registered Recipient</small><b>${esc(selected.recipient_name || '—')}</b></div></div>
-      <label>Package Owner / Recipient Name</label><input id="pdRecipient" value="${esc(selected.recipient_name || '')}" readonly title="Read-only for registered recipient">
+      <label>Package Owner / Recipient Name</label><input id="pdRecipient" value="${esc(selected.recipient_name || '')}" placeholder="Recipient / Representative Name" autocomplete="off">
+      <small class="pd-hint">Defaulted to the registered recipient. Edit if the package is received by a representative or delegate.</small>
       <label>Security Hand Over *</label><input id="pdSecurity" placeholder="Enter Security Hand Over" required>
       <label>Distribution Date &amp; Time</label><input value="System timestamp on submission" readonly>
       <button class="submit" id="pdSubmit">SUBMIT DISTRIBUTION</button></div>`;
@@ -150,12 +142,14 @@
 
   async function submitDistribution() {
     const security = document.querySelector('#pdSecurity')?.value.trim();
+    const recipient = document.querySelector('#pdRecipient')?.value.trim();
     const notice = document.querySelector('#pdNotice');
+    if (!recipient) { notice.textContent = 'Please enter Recipient / Representative Name.'; return; }
     if (!security) { notice.textContent = 'Please enter Security Hand Over.'; return; }
     const btn = document.querySelector('#pdSubmit');
     btn.disabled = true; notice.textContent = 'Processing distribution…';
     try {
-      const data = await callApi('', { method:'POST', body: JSON.stringify({ package_registration_id: selected.id, recipient_name: document.querySelector('#pdRecipient').value.trim(), security_hand_over: security }) });
+      const data = await callApi('', { method:'POST', body: JSON.stringify({ package_registration_id: selected.id, recipient_name: recipient, security_hand_over: security }) });
       notice.textContent = '';
       document.querySelector('#pdSelected').innerHTML = `<div class="pd-success"><h3>Package successfully distributed.</h3><p><b>Package Number:</b> ${esc(data.distribution.package_number)}</p><p><b>Recipient:</b> ${esc(data.distribution.recipient_name)}</p><p><b>Security Hand Over:</b> ${esc(data.distribution.security_hand_over)}</p><p><b>Distribution Date &amp; Time:</b> ${fmt(data.distribution.distributed_at)}</p><button class="submit" id="pdBack">SEARCH ANOTHER PACKAGE</button></div>`;
       document.querySelector('#pdBack').onclick = () => { selected = null; renderAuth(); };
@@ -166,12 +160,9 @@
   }
 
   const style = document.createElement('style');
-  style.textContent = `.pd-wrap{padding:0 23px 23px}.pd-wrap input{box-sizing:border-box;margin:7px 0 12px}.pd-auth{padding:10px 0}.pd-auth h3{margin:0 0 5px}.pd-auth p{opacity:.75;font-size:.8rem}.pd-auth input{display:block}.pd-user{font-size:.72rem;opacity:.8;margin-bottom:14px}.pd-link{float:right;background:none;border:0;color:var(--gold2);cursor:pointer}.pd-search{display:grid;grid-template-columns:1fr 130px;gap:9px;align-items:end}.pd-results{margin-top:15px;display:grid;gap:8px;max-height:430px;overflow:auto}.pd-result{display:grid;grid-template-columns:1.3fr 1fr auto;gap:12px;text-align:left;color:#fff;background:rgba(4,25,45,.65);border:1px solid var(--line);border-radius:12px;padding:12px;cursor:pointer}.pd-result:hover{border-color:var(--gold2);background:rgba(20,55,87,.75)}.pd-result div{display:grid;gap:4px}.pd-result span{font-size:.72rem;opacity:.72}.pd-result em{align-self:center;color:var(--gold2);font-size:.58rem;font-style:normal;font-weight:700;white-space:nowrap}.pd-empty{text-align:center;padding:22px;opacity:.7;font-size:.78rem}.pd-error{color:var(--danger)}.pd-selected{margin-top:16px;padding:15px;border:1px solid var(--line);border-radius:14px;background:rgba(3,20,36,.5)}.pd-selected-head{display:flex;justify-content:space-between;gap:10px;margin-bottom:12px}.pd-selected-head span{font-size:.58rem;color:var(--gold2);font-weight:700}.pd-detail{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:15px}.pd-detail div{display:grid;gap:3px}.pd-detail small{font-size:.62rem;opacity:.55}.pd-detail b{font-size:.76rem}.pd-selected label{display:block;margin:12px 0 4px;font-size:.76rem}.pd-success{padding:10px}.pd-success h3{margin-top:0;color:#c7f9d8}@media(max-width:700px){.pd-result{grid-template-columns:1fr}.pd-search{grid-template-columns:1fr}.pd-detail{grid-template-columns:1fr 1fr}}@media(max-width:520px){.pd-wrap{padding:0 18px 18px}.pd-detail{grid-template-columns:1fr}}`;
+  style.textContent = `.pd-wrap{padding:0 23px 23px}.pd-wrap input{box-sizing:border-box;margin:7px 0 12px}.pd-auth{padding:10px 0}.pd-auth h3{margin:0 0 5px}.pd-auth p{opacity:.75;font-size:.8rem}.pd-auth input{display:block}.pd-user{font-size:.72rem;opacity:.8;margin-bottom:14px}.pd-link{float:right;background:none;border:0;color:var(--gold2);cursor:pointer}.pd-search{display:grid;grid-template-columns:1fr 130px;gap:9px;align-items:end}.pd-results{margin-top:15px;display:grid;gap:8px;max-height:430px;overflow:auto}.pd-result{display:grid;grid-template-columns:1.3fr 1fr auto;gap:12px;text-align:left;color:#fff;background:rgba(4,25,45,.65);border:1px solid var(--line);border-radius:12px;padding:12px;cursor:pointer}.pd-result:hover{border-color:var(--gold2);background:rgba(20,55,87,.75)}.pd-result div{display:grid;gap:4px}.pd-result span{font-size:.72rem;opacity:.72}.pd-result em{align-self:center;color:var(--gold2);font-size:.58rem;font-style:normal;font-weight:700;white-space:nowrap}.pd-empty{text-align:center;padding:22px;opacity:.7;font-size:.78rem}.pd-error{color:var(--danger)}.pd-selected{margin-top:16px;padding:15px;border:1px solid var(--line);border-radius:14px;background:rgba(3,20,36,.5)}.pd-selected-head{display:flex;justify-content:space-between;gap:10px;margin-bottom:12px}.pd-selected-head span{font-size:.58rem;color:var(--gold2);font-weight:700}.pd-detail{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:15px}.pd-detail div{display:grid;gap:3px}.pd-detail small{font-size:.62rem;opacity:.55}.pd-detail b{font-size:.76rem}.pd-selected label{display:block;margin:12px 0 4px;font-size:.76rem}.pd-hint{display:block;font-size:.64rem;opacity:.62;line-height:1.45;margin:-5px 0 8px}.pd-success{padding:10px}.pd-success h3{margin-top:0;color:#c7f9d8}@media(max-width:700px){.pd-result{grid-template-columns:1fr}.pd-search{grid-template-columns:1fr}.pd-detail{grid-template-columns:1fr 1fr}}@media(max-width:520px){.pd-wrap{padding:0 18px 18px}.pd-detail{grid-template-columns:1fr}}`;
   document.head.appendChild(style);
 
-  async function boot() {
-    card();
-    try { await initClient(); } catch (e) { console.warn('Package Distribution auth unavailable:', e); }
-  }
+  async function boot() { card(); try { await initClient(); } catch (e) { console.warn('Package Distribution auth unavailable:', e); } }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();
