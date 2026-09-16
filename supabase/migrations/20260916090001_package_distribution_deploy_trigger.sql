@@ -1,0 +1,2 @@
+-- Package Distribution deployment trigger marker.
+-- The actual schema is in 20260916090000_package_distribution.sql.
