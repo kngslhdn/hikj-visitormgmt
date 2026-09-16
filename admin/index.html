@@ -11,6 +11,7 @@
 .login{min-height:100vh;display:grid;place-items:center;padding:20px;background:radial-gradient(circle at 50% 0,#173c64,#071a30 68%)}
 .login-card{width:min(430px,100%);background:#fff;border-radius:18px;padding:34px;box-shadow:0 25px 80px #0007}.logo{width:120px;height:76px;object-fit:contain;display:block;margin:0 auto 12px;filter:brightness(0)}.brand{text-align:center;color:var(--navy);font-weight:700;font-size:20px}.brand small{display:block;color:var(--muted);font-weight:400;font-size:10px;margin-top:5px;letter-spacing:1px}.login-card h1{font-size:22px;margin:28px 0 6px}.login-card p{color:var(--muted);font-size:12px;margin:0 0 22px}.field{margin:15px 0}.field label{display:block;font-size:12px;font-weight:700;margin-bottom:6px}.field input{width:100%;padding:12px;border:1px solid var(--line);border-radius:9px;outline:none}.login-btn{width:100%;padding:13px;border:0;border-radius:9px;background:var(--navy);color:#fff;font-weight:700;cursor:pointer}.login-btn:disabled{opacity:.55}.error{color:var(--red);font-size:12px;min-height:18px;margin-top:10px}
 .top{height:70px;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 28px}.top-title{font-weight:700;font-size:16px}.top-title small{display:block;font-weight:400;opacity:.6;font-size:10px;margin-top:3px;letter-spacing:1px}.user{display:flex;align-items:center;gap:12px}.user-info{text-align:right;font-size:11px}.user-info small{display:block;opacity:.6;margin-top:3px}.logout{background:#fff1;color:#fff;border:1px solid #fff3;border-radius:8px;padding:8px 12px;cursor:pointer}
+#app:not(.hidden){min-height:100vh}.v2-loading{padding:80px;text-align:center;color:#64748b;font-size:13px}
 </style>
 </head>
 <body>
@@ -20,17 +21,17 @@
 <h1>Admin Sign In</h1><p>Authorized HIKJ Security administrators only.</p>
 <form id="loginForm"><div class="field"><label>Email</label><input id="email" type="email" autocomplete="username" required></div><div class="field"><label>Password</label><input id="password" type="password" autocomplete="current-password" required></div><button id="loginBtn" class="login-btn" type="submit">SIGN IN</button><div id="loginError" class="error"></div></form>
 </div></section>
-<section id="app" class="hidden"><header class="top"><div class="top-title">HIKJ Visitor Management<small>SECURITY ADMIN CONSOLE V2</small></div><div class="user"><div class="user-info"><b id="userName">Admin</b><small id="userRole">—</small></div><button id="logout" class="logout">Sign Out</button></div></header></section>
+<section id="app" class="hidden"><header class="top"><div class="top-title">HIKJ Visitor Management<small>SECURITY ADMIN CONSOLE V2</small></div><div class="user"><div class="user-info"><b id="userName">Admin</b><small id="userRole">—</small></div><button id="logout" class="logout">Sign Out</button></div></header><div id="v2Boot" class="v2-loading">Loading Security Admin Console…</div></section>
 <script>
 const SUPABASE_URL='https://hmqgmusellcetakoalva.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY='sb_publishable_J6P-baCAZOoVxj2rHBZMkA_Ux4U5_mQ';
 const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
 const API=SUPABASE_URL+'/functions/v1/admin-console-api';
 async function profile(session){const r=await fetch(API+'?action=summary',{headers:{apikey:SUPABASE_PUBLISHABLE_KEY,Authorization:'Bearer '+session.access_token}});const j=await r.json();if(!r.ok)throw Error(j.error||'Unable to load admin profile');document.getElementById('userName').textContent=j.profile?.full_name||session.user.email;document.getElementById('userRole').textContent=j.profile?.role||'ADMIN'}
-async function enter(session){await profile(session);document.getElementById('login').classList.add('hidden');document.getElementById('app').classList.remove('hidden')}
-document.getElementById('loginForm').addEventListener('submit',async ev=>{ev.preventDefault();const b=document.getElementById('loginBtn'),err=document.getElementById('loginError');b.disabled=true;b.textContent='SIGNING IN…';err.textContent='';try{const {data,error}=await sb.auth.signInWithPassword({email:document.getElementById('email').value.trim(),password:document.getElementById('password').value});if(error)throw error;await enter(data.session)}catch(e){err.textContent=e.message||String(e)}finally{b.disabled=false;b.textContent='SIGN IN'}});
+async function enter(session){await profile(session);document.getElementById('login').classList.add('hidden');document.getElementById('app').classList.remove('hidden');window.dispatchEvent(new CustomEvent('hikj-admin-ready',{detail:{session}}));if(window.HIKJAdminV2Build)window.HIKJAdminV2Build()}
+document.getElementById('loginForm').addEventListener('submit',async ev=>{ev.preventDefault();const b=document.getElementById('loginBtn'),err=document.getElementById('loginError');b.disabled=true;b.textContent='SIGNING IN…';err.textContent='';try{const {data,error}=await sb.auth.signInWithPassword({email:document.getElementById('email').value.trim(),password:document.getElementById('password').value});if(error)throw error;if(!data.session)throw Error('No authenticated session returned.');await enter(data.session)}catch(e){err.textContent=e.message||String(e)}finally{b.disabled=false;b.textContent='SIGN IN'}});
 document.getElementById('logout').onclick=async()=>{await sb.auth.signOut();location.reload()};
-sb.auth.getSession().then(({data:{session}})=>{if(session)enter(session).catch(()=>sb.auth.signOut())});
+sb.auth.getSession().then(({data:{session}})=>{if(session)enter(session).catch(e=>{console.error(e);document.getElementById('loginError').textContent=e.message||String(e)})});
 </script>
-<script src="admin-console-v2.js"></script>
+<script src="admin-console-v2.js?v=2"></script>
 </body></html>
