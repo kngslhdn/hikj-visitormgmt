@@ -24,7 +24,7 @@ async function visitorIdentity(name:string,mobile:string,company:string,category
 
 async function findExitEntry(pass:string){
  const passKey=normText(pass);
- const {data,error}=await supabase.from('visitor_entries').select('id,visitor_id,visitor_name,visitor_company_name,pass_vest_number,entry_at').is('exit_id',null).order('entry_at',{ascending:false}).limit(5000);
+ const {data,error}=await supabase.from('visitor_entries').select('id,visitor_id,visitor_name,pass_vest_number,entry_at').is('exit_id',null).order('entry_at',{ascending:false}).limit(5000);
  if(error)throw error;
  return (data||[]).find(e=>passKey&&normText(e.pass_vest_number)===passKey)||null;
 }
@@ -50,8 +50,7 @@ Deno.serve(async req=>{
    visitorId=matchedExitEntry.visitor_id;
   }
 
-  // Preflight key return validation before creating a submission.
-  // Invalid returns must not create a misleading submission record.
+  // Preflight key return validation before creating a submission. Invalid returns must not create a misleading submission record.
   let returnBorrowing:any=null;
   if(type==='key_return'){
    const key=clean(body.key_number||body.keyNumber);const quantity=Number(body.quantity||body.qty||1);
@@ -70,7 +69,7 @@ Deno.serve(async req=>{
    const {error}=await supabase.from('visitor_entries').insert({submission_id:submission.id,visitor_id:visitorId,visitor_name:name,visitor_phone:mobile||null,visitor_company_name:company||null,visitor_category:clean(body.category)||null,work_location:clean(val(body,'work_location','lokasi')),purpose:clean(val(body,'purpose','tujuan')),security_officer_name:clean(val(body,'security_officer_name','security')),pass_vest_number:clean(val(body,'pass_vest_number','pass')),entry_at:timestamp(body.entry_at||body.datetime)});if(error)throw error;
   }else if(type==='visitor_exit'){
    const pass=clean(val(body,'pass_vest_number','pass'));const entry=matchedExitEntry;const exitName=clean(entry?.visitor_name||'');
-   const {data:ex,error}=await supabase.from('visitor_exits').insert({submission_id:submission.id,visitor_id:visitorId,entry_id:entry.id,visitor_name:exitName,company_name:null,pass_vest_number:pass,security_officer_name:clean(val(body,'security_officer_name','security')),exit_at:new Date().toISOString()}).select('id').single();if(error)throw error;if(entry.id)await supabase.from('visitor_entries').update({exit_id:ex.id}).eq('id',entry.id);
+   const {data:ex,error}=await supabase.from('visitor_exits').insert({submission_id:submission.id,visitor_id:visitorId,entry_id:entry.id,visitor_name:exitName,pass_vest_number:pass,security_officer_name:clean(val(body,'security_officer_name','security')),exit_at:new Date().toISOString()}).select('id').single();if(error)throw error;if(entry.id)await supabase.from('visitor_entries').update({exit_id:ex.id}).eq('id',entry.id);
   }else if(type==='key_borrowing'){
    const key=clean(body.key_number||body.keyNumber);const quantity=Number(body.quantity||body.qty||1);if(!key)return json({error:'Please enter Key Number.'},400);if(!Number.isInteger(quantity)||quantity<1)return json({error:'Quantity of Keys must be a whole number greater than 0.'},400);const {data:outstanding,error:oe}=await supabase.from('key_borrowings').select('id,borrower_name,quantity').eq('key_number',key).is('return_id',null).order('borrowed_at',{ascending:false}).limit(1).maybeSingle();if(oe)throw oe;if(outstanding)return json({ok:false,error:`Key ${key} is currently borrowed by ${outstanding.borrower_name}. Please return the key before borrowing it again.`},409);const {error}=await supabase.from('key_borrowings').insert({submission_id:submission.id,borrower_name:clean(val(body,'borrower_name','borrowerName')),department:clean(body.department),key_number:key,key_description:clean(body.key_description||body.description),quantity,security_officer_name:clean(val(body,'security_officer_name','security')),borrowed_at:timestamp(body.borrowed_at||body.datetime)});if(error)throw error;
   }else if(type==='key_return'){
