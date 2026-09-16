@@ -1,0 +1,59 @@
+name: Update Title and Compact Grid
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/update-title-grid.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update CSS
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+
+          old = '.title{text-align:center;margin:0;font-size:clamp(2rem,4.2vw,3rem);font-weight:700;'
+          new = '.title{text-align:center;margin:0;font-size:28px;font-weight:700;'
+          if old not in s:
+              raise SystemExit('Title CSS target not found')
+          s = s.replace(old, new, 1)
+
+          old = '.choices{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:34px}'
+          new = '.choices{display:grid;grid-template-columns:repeat(5,158px);gap:8px;width:max-content;max-width:100%;margin:34px auto 0}'
+          if old not in s:
+              raise SystemExit('Grid CSS target not found')
+          s = s.replace(old, new, 1)
+
+          old = '@media(max-width:900px){.choices{grid-template-columns:repeat(2,1fr)}'
+          new = '@media(max-width:900px){.choices{grid-template-columns:repeat(2,158px);width:324px;max-width:100%;justify-content:center}'
+          if old not in s:
+              raise SystemExit('Tablet grid target not found')
+          s = s.replace(old, new, 1)
+
+          old = '@media(max-width:520px){.shell{width:min(100% - 20px,1180px);padding-top:22px}.brand-logo{width:92px;max-height:92px}.choices{grid-template-columns:1fr;gap:11px;margin-top:27px}'
+          new = '@media(max-width:520px){.shell{width:min(100% - 20px,1180px);padding-top:22px}.brand-logo{width:92px;max-height:92px}.choices{grid-template-columns:1fr;gap:11px;width:100%;margin-top:27px}'
+          if old not in s:
+              raise SystemExit('Mobile grid target not found')
+          s = s.replace(old, new, 1)
+
+          p.write_text(s, encoding='utf-8')
+          PY
+
+      - name: Commit CSS update
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git diff --cached --quiet && exit 0
+          git commit -m 'Set 28px title and compact choice grid'
+          git push
