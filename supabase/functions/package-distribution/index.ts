@@ -1,166 +1,107 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const ALLOWED_ORIGINS = new Set([
-  'https://kngslhdn.github.io',
-  'http://localhost:3000',
-  'http://127.0.0.1:5500'
-]);
-
-const headers = (req: Request) => {
-  const origin = req.headers.get('Origin') || '';
-  return {
-    'Access-Control-Allow-Origin': ALLOWED_ORIGINS.has(origin) ? origin : 'https://kngslhdn.github.io',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-    'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-    'Vary': 'Origin',
-    'Content-Type': 'application/json'
-  };
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+  "Content-Type": "application/json",
 };
-
-const json = (req: Request, body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: headers(req) });
-
-const sb = createClient(
-  Deno.env.get('SUPABASE_URL')!,
-  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-);
+const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: corsHeaders });
+const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const sb = createClient(supabaseUrl, serviceRoleKey);
 
 async function requireAdmin(req: Request) {
-  const auth = req.headers.get('Authorization') || '';
-  if (!auth.startsWith('Bearer ')) return null;
-  const token = auth.slice(7);
-  const { data: { user }, error } = await sb.auth.getUser(token);
-  if (error || !user) return null;
-
-  const { data: profile, error: pe } = await sb
-    .from('admin_profiles')
-    .select('full_name,role,active')
-    .eq('user_id', user.id)
-    .maybeSingle();
-
-  if (pe || !profile?.active) return null;
-  return { user, profile };
+  const auth = req.headers.get("Authorization") || "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+  if (!token) throw new Error("Unauthorized");
+  const { data, error } = await sb.auth.getUser(token);
+  if (error || !data.user) throw new Error("Unauthorized");
+  const { data: profile, error: profileError } = await sb.from("admin_profiles").select("user_id,active,role").eq("user_id", data.user.id).eq("active", true).maybeSingle();
+  if (profileError || !profile || !["ADMIN", "MANAGER", "SUPERADMIN"].includes(profile.role)) throw new Error("Forbidden");
+  return data.user;
 }
 
-const clean = (v: unknown) => String(v ?? '').trim();
-const like = (v: string) => `%${v.replace(/[%_]/g, c => `\\${c}`)}%`;
+function like(value: string) { return `%${value.replace(/[\\%_]/g, "\\$&")}%`; }
+function isUuid(value: string) { return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value); }
 
-async function searchPackages(req: Request, url: URL) {
-  const auth = await requireAdmin(req);
-  if (!auth) return json(req, { error: 'Unauthorized' }, 401);
-
-  const q = clean(url.searchParams.get('q')).toLowerCase();
-  const limit = Math.max(1, Math.min(Number(url.searchParams.get('limit') || 50), 100));
-
-  // Search only package registrations that do not have a distribution row.
-  const { data: distributed, error: de } = await sb
-    .from('package_distributions')
-    .select('package_registration_id');
-  if (de) throw de;
-  const distributedIds = new Set((distributed || []).map(x => x.package_registration_id));
-
-  let query = sb
-    .from('package_registrations')
-    .select('id,submission_id,courier_name,phone,company_name,item_type,item_count,recipient_type,recipient_name,security_officer_name,created_at')
-    .order('created_at', { ascending: false })
-    .limit(limit);
-
-  if (q) {
-    query = query.or([
-      `submission_id.ilike.${like(q)}`,
-      `recipient_name.ilike.${like(q)}`,
-      `courier_name.ilike.${like(q)}`,
-      `company_name.ilike.${like(q)}`,
-      `item_type.ilike.${like(q)}`,
-      `recipient_type.ilike.${like(q)}`
-    ].join(','));
-  }
-
-  const { data, error } = await query;
-  if (error) throw error;
-
-  const rows = (data || [])
-    .filter(row => !distributedIds.has(row.id))
-    .map(row => ({ ...row, status: 'READY FOR DISTRIBUTION' }));
-
-  return json(req, { data: rows, profile: auth.profile });
-}
-
-async function distribute(req: Request) {
-  const auth = await requireAdmin(req);
-  if (!auth) return json(req, { error: 'Unauthorized' }, 401);
-
-  const body = await req.json().catch(() => ({}));
-  const packageRegistrationId = clean(body.package_registration_id);
-  const recipientName = clean(body.recipient_name);
-  const securityHandOver = clean(body.security_hand_over);
-
-  if (!packageRegistrationId) return json(req, { error: 'Package not found.' }, 404);
-  if (!securityHandOver) return json(req, { error: 'Please enter Security Hand Over.' }, 400);
-
-  const { data: pkg, error: pe } = await sb
-    .from('package_registrations')
-    .select('id,submission_id,recipient_name,company_name,courier_name,item_type,item_count,created_at')
-    .eq('id', packageRegistrationId)
-    .maybeSingle();
-  if (pe) throw pe;
-  if (!pkg) return json(req, { error: 'Package not found.' }, 404);
-
-  const { data: existing, error: xe } = await sb
-    .from('package_distributions')
-    .select('id,distributed_at,status')
-    .eq('package_registration_id', pkg.id)
-    .maybeSingle();
-  if (xe) throw xe;
-  if (existing) return json(req, { error: 'Package has already been distributed.' }, 409);
-
-  const finalRecipient = recipientName || clean(pkg.recipient_name);
-  if (!finalRecipient) return json(req, { error: 'Package not found.' }, 404);
-
-  // Unique(package_registration_id) is the final race-condition guard.
-  const distributedAt = new Date().toISOString();
-  const { data: row, error } = await sb
-    .from('package_distributions')
-    .insert({
-      package_registration_id: pkg.id,
-      package_number: pkg.submission_id,
-      registered_recipient_name: pkg.recipient_name,
-      recipient_name: finalRecipient,
-      security_hand_over: securityHandOver,
-      distributed_at: distributedAt,
-      status: 'DISTRIBUTED'
-    })
-    .select('id,package_registration_id,package_number,registered_recipient_name,recipient_name,security_hand_over,distributed_at,status,created_at')
-    .single();
-
-  if (error) {
-    if (error.code === '23505') return json(req, { error: 'Package has already been distributed.' }, 409);
-    throw error;
-  }
-
-  return json(req, {
-    ok: true,
-    message: 'Package successfully distributed.',
-    distribution: {
-      ...row,
-      company_name: pkg.company_name,
-      courier_name: pkg.courier_name,
-      item_type: pkg.item_type,
-      item_count: pkg.item_count,
-      registered_at: pkg.created_at
-    }
-  });
-}
-
-Deno.serve(async req => {
-  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: headers(req) });
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
   try {
-    const url = new URL(req.url);
-    if (req.method === 'GET') return await searchPackages(req, url);
-    if (req.method === 'POST') return await distribute(req);
-    return json(req, { error: 'Method not allowed' }, 405);
-  } catch (e) {
-    console.error(e);
-    return json(req, { error: 'Unable to complete package distribution. Please try again.' }, 500);
+    await requireAdmin(req);
+
+    if (req.method === "GET") {
+      const url = new URL(req.url);
+      const q = (url.searchParams.get("q") || "").trim();
+      let query = sb.from("package_registrations")
+        .select("id,submission_id,courier_name,phone,company_name,item_type,item_count,recipient_type,recipient_name,security_officer_name,created_at")
+        .order("created_at", { ascending: false }).limit(100);
+
+      const { data: distributed, error: de } = await sb.from("package_distributions").select("package_registration_id");
+      if (de) throw de;
+      const distributedIds = (distributed || []).map((r) => r.package_registration_id);
+      if (distributedIds.length) query = query.not("id", "in", `(${distributedIds.join(",")})`);
+
+      if (q) {
+        const pattern = like(q);
+        const textFilters = [
+          `recipient_name.ilike.${pattern}`,
+          `courier_name.ilike.${pattern}`,
+          `company_name.ilike.${pattern}`,
+          `item_type.ilike.${pattern}`,
+          `recipient_type.ilike.${pattern}`,
+        ];
+        // submission_id is UUID and PostgreSQL does not support ilike on UUID.
+        // Only add an exact UUID filter when the search text is actually a UUID.
+        if (isUuid(q)) {
+          const { data: exact } = await sb.from("package_registrations")
+            .select("id,submission_id,courier_name,phone,company_name,item_type,item_count,recipient_type,recipient_name,security_officer_name,created_at")
+            .eq("submission_id", q).maybeSingle();
+          if (exact && !distributedIds.includes(exact.id)) {
+            return json({ packages: [{ ...exact, package_number: exact.submission_id, status: "READY FOR DISTRIBUTION" }] });
+          }
+        }
+        query = query.or(textFilters.join(","));
+      }
+
+      const { data, error } = await query;
+      if (error) return json({ error: error.message }, 400);
+      return json({ packages: (data || []).map((p) => ({ ...p, package_number: p.submission_id, status: "READY FOR DISTRIBUTION" })) });
+    }
+
+    if (req.method === "POST") {
+      const body = await req.json();
+      const packageRegistrationId = String(body.package_registration_id || "").trim();
+      const securityHandOver = String(body.security_hand_over || "").trim();
+      const recipientName = String(body.recipient_name || "").trim();
+      if (!packageRegistrationId) return json({ error: "Package not found." }, 404);
+      if (!securityHandOver) return json({ error: "Please enter Security Hand Over." }, 400);
+      if (!recipientName) return json({ error: "Please enter Recipient / Representative Name." }, 400);
+
+      const { data: pkg, error: pkgError } = await sb.from("package_registrations").select("id,submission_id,recipient_name").eq("id", packageRegistrationId).maybeSingle();
+      if (pkgError || !pkg) return json({ error: "Package not found." }, 404);
+      const { data: existing } = await sb.from("package_distributions").select("id").eq("package_registration_id", packageRegistrationId).maybeSingle();
+      if (existing) return json({ error: "Package has already been distributed." }, 409);
+
+      const { data: distribution, error: insertError } = await sb.from("package_distributions").insert({
+        package_registration_id: pkg.id,
+        package_number: pkg.submission_id,
+        registered_recipient_name: pkg.recipient_name,
+        recipient_name: recipientName,
+        security_hand_over: securityHandOver,
+        distributed_at: new Date().toISOString(),
+        status: "DISTRIBUTED",
+      }).select("id,package_number,recipient_name,security_hand_over,distributed_at,status").single();
+      if (insertError) {
+        if (insertError.code === "23505") return json({ error: "Package has already been distributed." }, 409);
+        return json({ error: "Unable to complete package distribution. Please try again." }, 500);
+      }
+      return json({ success: true, message: "Package successfully distributed.", distribution });
+    }
+    return json({ error: "Method not allowed." }, 405);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unauthorized";
+    return json({ error: message === "Forbidden" ? "Forbidden" : "Unauthorized" }, message === "Forbidden" ? 403 : 401);
   }
 });
