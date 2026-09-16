@@ -1,0 +1,48 @@
+name: One-off package label update
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  update:
+    if: github.event.head_commit.message != 'Update package registration labels'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update package labels
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+          old1 = "['perusahaan','Company Name']"
+          new1 = "['perusahaan','Expedition Company']"
+          old2 = "['tujuan','Purpose','select',['STAFF','GUEST']]"
+          new2 = "['tujuan','Recipient Type','select',['STAFF','GUEST']]"
+          if old1 not in s:
+              raise SystemExit('Company Name target not found')
+          if old2 not in s:
+              raise SystemExit('Purpose target not found')
+          s = s.replace(old1, new1, 1)
+          s = s.replace(old2, new2, 1)
+          p.write_text(s, encoding='utf-8')
+          PY
+      - name: Commit and remove temporary workflow
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Update package registration labels'
+          git push
+          git rm .github/workflows/oneoff-package-labels.yml
+          git commit -m 'Remove temporary package label workflow'
+          git push
+      - name: Trigger GitHub Pages deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy.yml --ref main
