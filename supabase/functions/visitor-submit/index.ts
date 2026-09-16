@@ -39,8 +39,6 @@ async function visitorIdentity(name:string,mobile:string,company:string,category
  if(error)throw error;return data.id;
 }
 
-// Exit is allowed only when at least one submitted identifier matches an active entry.
-// Name OR Pass/Vest Number is sufficient; company is not required for validation.
 async function findExitEntry(name:string,pass:string){
  const nameKey=normText(name);
  const passKey=normText(pass);
@@ -50,17 +48,16 @@ async function findExitEntry(name:string,pass:string){
   .order('entry_at',{ascending:false})
   .limit(200);
  if(error)throw error;
- return (data||[]).find(e=>
-   (nameKey && normText(e.visitor_name)===nameKey) ||
-   (passKey && normText(e.pass_vest_number)===passKey)
- )||null;
+ return (data||[]).find(e=>(nameKey&&normText(e.visitor_name)===nameKey)||(passKey&&normText(e.pass_vest_number)===passKey))||null;
 }
 
-async function uploadPackagePhoto(dataUrl:string,submissionId:string){
+async function uploadPackagePhoto(dataUrl:string){
  if(!dataUrl||!dataUrl.startsWith('data:image/'))return null;
  const match=dataUrl.match(/^data:(image\/(?:jpeg|png|webp));base64,(.+)$/);if(!match)return null;
  const bytes=Uint8Array.from(atob(match[2]),c=>c.charCodeAt(0));if(bytes.length>5*1024*1024)throw Error('Package photo exceeds 5 MB');
- const ext=match[1].split('/')[1].replace('jpeg','jpg');const path=`${new Date().toISOString().slice(0,10)}/${submissionId}.${ext}`;
+ const ext=match[1].split('/')[1].replace('jpeg','jpg');
+ // Generate the storage object key server-side so every upload is unique.
+ const path=`${new Date().toISOString().slice(0,10)}/${crypto.randomUUID()}.${ext}`;
  const {error}=await supabase.storage.from('package-photos').upload(path,bytes,{contentType:match[1],upsert:false});if(error)throw error;return path;
 }
 
@@ -85,9 +82,7 @@ Deno.serve(async req=>{
    if(!name||!pass||!officer)return json({error:'Required visitor fields are missing'},400);
    if(type==='visitor_exit'){
     matchedExitEntry=await findExitEntry(name,pass);
-    if(!matchedExitEntry){
-     return json({ok:false,error:'Visitor not found: Name or Pass/Vest Number does not match any visitor currently inside the hotel.'},404);
-    }
+    if(!matchedExitEntry)return json({ok:false,error:'Visitor not found: Name or Pass/Vest Number does not match any visitor currently inside the hotel.'},404);
     visitorId=matchedExitEntry.visitor_id;
    }else{
     visitorId=await visitorIdentity(name,mobile,company,clean(body.category)||null);
@@ -108,7 +103,8 @@ Deno.serve(async req=>{
   }else if(type==='key_return'){
    const key=clean(body.key_number||body.keyNumber);const {data:borrowing}=await supabase.from('key_borrowings').select('id').eq('key_number',key).is('return_id',null).order('borrowed_at',{ascending:false}).limit(1).maybeSingle();const {data:ret,error}=await supabase.from('key_returns').insert({submission_id:submission.id,borrowing_id:borrowing?.id||null,return_name:clean(val(body,'return_name','returnName')),department:clean(body.department),key_number:key,key_description:clean(body.key_description||body.description),quantity:Number(body.quantity||body.qty||1),security_officer_name:clean(val(body,'security_officer_name','security')),returned_at:timestamp(body.returned_at||body.datetime)}).select('id').single();if(error)throw error;if(borrowing?.id)await supabase.from('key_borrowings').update({return_id:ret.id}).eq('id',borrowing.id);
   }else{
-   const path=await uploadPackagePhoto(clean(body.foto||body.photo_data_url));const {error}=await supabase.from('package_registrations').insert({submission_id:submission.id,courier_name:clean(val(body,'courier_name','namaPengantar')),phone:mobile||null,phone_normalized:phone(mobile)||null,company_name:company,item_type:clean(val(body,'item_type','jenisBarang')).toUpperCase(),item_count:Number(body.item_count||body.number_of_items||body.jumlah||1),recipient_type:clean(val(body,'recipient_type','tujuan')).toUpperCase(),recipient_name:clean(val(body,'recipient_name','namaTujuan')),security_officer_name:clean(val(body,'security_officer_name','security')),photo_storage_path:path});if(error)throw error;
+   const path=await uploadPackagePhoto(clean(body.foto||body.photo_data_url));
+   const {error}=await supabase.from('package_registrations').insert({submission_id:submission.id,courier_name:clean(val(body,'courier_name','namaPengantar')),phone:mobile||null,phone_normalized:phone(mobile)||null,company_name:company,item_type:clean(val(body,'item_type','jenisBarang')).toUpperCase(),item_count:Number(body.item_count||body.number_of_items||body.jumlah||1),recipient_type:clean(val(body,'recipient_type','tujuan')).toUpperCase(),recipient_name:clean(val(body,'recipient_name','namaTujuan')),security_officer_name:clean(val(body,'security_officer_name','security')),photo_storage_path:path});if(error)throw error;
   }
   await supabase.from('submissions').update({status:'completed'}).eq('id',submission.id);
   return json({ok:true,submission_id:submissionId});
