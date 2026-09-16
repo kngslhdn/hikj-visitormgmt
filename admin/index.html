@@ -33,6 +33,6 @@ document.getElementById('loginForm').addEventListener('submit',async ev=>{ev.pre
 document.getElementById('logout').onclick=async()=>{await sb.auth.signOut();location.reload()};
 sb.auth.getSession().then(({data:{session}})=>{if(session)enter(session).catch(e=>{console.error(e);document.getElementById('loginError').textContent=e.message||String(e)})});
 </script>
-<script src="admin-console-v2.js?v=2"></script>
-<script src="visitor-monitoring-enhancement.js?v=1"></script>
+<script src="admin-console-v2.js?v=3"></script>
+<script src="visitor-monitoring-enhancement.js?v=3"></script>
 </body></html>
