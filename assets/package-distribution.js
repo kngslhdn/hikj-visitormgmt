@@ -30,12 +30,36 @@
     if (!root || document.querySelector('[data-distribution-card]')) return;
     root.insertAdjacentHTML('beforeend', `<button type="button" class="choice" data-distribution-card aria-pressed="false">
       <span class="choice-icon"><svg viewBox="0 0 48 48"><path d="M9 15l15-7 15 7-15 7zM9 15v18l15 8 15-8V15M24 22v19"/><path d="M31 30h9M35 26l5 4-5 4"/></svg></span>
-      <strong>Package Distribution</strong><span class="arrow">→</span>
+      <strong>Package Distribution</strong>
     </button>`);
     root.addEventListener('click', ev => {
       const btn = ev.target.closest('[data-distribution-card]');
       if (btn) { ev.stopImmediatePropagation(); openDistribution(); }
     }, true);
+  }
+
+  function tuneCards() {
+    document.querySelectorAll('.choice .arrow').forEach(el => el.remove());
+    const style = document.createElement('style');
+    style.id = 'hikj-card-layout-v2';
+    style.textContent = `
+      .choices{grid-template-columns:repeat(6,170px);gap:8px;width:max-content;max-width:100%}
+      .choice,.choice:last-child{width:170px;height:166px;min-height:166px;padding:18px 14px;justify-self:center;justify-content:center}
+      .choice-icon{margin:0 auto 11px}
+      .choice strong{min-height:0;width:100%;line-height:1.3}
+      @media(max-width:900px){
+        .choices{grid-template-columns:repeat(3,170px);width:526px;max-width:100%}
+        .choice,.choice:last-child{width:170px;height:166px;min-height:166px}
+      }
+      @media(max-width:520px){
+        .choices{grid-template-columns:1fr;width:100%;gap:11px}
+        .choice,.choice:last-child{width:100%;height:92px;min-height:92px;padding:12px 16px;flex-direction:row;align-items:center;justify-content:flex-start}
+        .choice-icon{width:54px;height:54px;min-width:54px;flex:0 0 54px;margin:0 16px 0 0}
+        .choice-icon svg{width:29px;height:29px}
+        .choice strong{width:auto;min-height:0;flex:1;justify-content:flex-start;font-size:.96rem;line-height:1.25}
+      }
+    `;
+    document.head.appendChild(style);
   }
 
   async function initClient() {
@@ -165,6 +189,6 @@
   style.textContent = `.pd-wrap{padding:0 23px 23px}.pd-wrap input{box-sizing:border-box;margin:7px 0 12px}.pd-auth{padding:10px 0}.pd-auth h3{margin:0 0 5px}.pd-auth p{opacity:.75;font-size:.8rem}.pd-auth input{display:block}.pd-user{font-size:.72rem;opacity:.8;margin-bottom:14px}.pd-link{float:right;background:none;border:0;color:var(--gold2);cursor:pointer}.pd-search{display:grid;grid-template-columns:1fr 130px;gap:9px;align-items:end}.pd-results{margin-top:15px;display:grid;gap:8px;max-height:430px;overflow:auto}.pd-result{display:grid;grid-template-columns:1.3fr 1fr auto;gap:12px;text-align:left;color:#fff;background:rgba(4,25,45,.65);border:1px solid var(--line);border-radius:12px;padding:12px;cursor:pointer}.pd-result:hover{border-color:var(--gold2);background:rgba(20,55,87,.75)}.pd-result div{display:grid;gap:4px}.pd-result span{font-size:.72rem;opacity:.72}.pd-result em{align-self:center;color:var(--gold2);font-size:.58rem;font-style:normal;font-weight:700;white-space:nowrap}.pd-empty{text-align:center;padding:22px;opacity:.7;font-size:.78rem}.pd-error{color:var(--danger)}.pd-selected{margin-top:16px;padding:15px;border:1px solid var(--line);border-radius:14px;background:rgba(3,20,36,.5)}.pd-selected-head{display:flex;justify-content:space-between;gap:10px;margin-bottom:12px}.pd-selected-head span{font-size:.58rem;color:var(--gold2);font-weight:700}.pd-detail{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:15px}.pd-detail div{display:grid;gap:3px}.pd-detail small{font-size:.62rem;opacity:.55}.pd-detail b{font-size:.76rem}.pd-selected label{display:block;margin:12px 0 4px;font-size:.76rem}.pd-hint{display:block;font-size:.64rem;opacity:.62;line-height:1.45;margin:-5px 0 8px}.pd-success{padding:10px}.pd-success h3{margin-top:0;color:#c7f9d8}@media(max-width:700px){.pd-result{grid-template-columns:1fr}.pd-search{grid-template-columns:1fr}.pd-detail{grid-template-columns:1fr 1fr}}@media(max-width:520px){.pd-wrap{padding:0 18px 18px}.pd-detail{grid-template-columns:1fr}}`;
   document.head.appendChild(style);
 
-  async function boot() { card(); try { await initClient(); } catch (e) { console.warn('Package Distribution auth unavailable:', e); } }
+  async function boot() { card(); tuneCards(); try { await initClient(); } catch (e) { console.warn('Package Distribution auth unavailable:', e); } }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();
