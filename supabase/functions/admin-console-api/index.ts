@@ -1,0 +1,96 @@
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+const ALLOWED_ORIGINS=new Set(['https://kngslhdn.github.io','http://localhost:3000','http://127.0.0.1:5500']);
+const headers=(req:Request)=>{const origin=req.headers.get('Origin')||'';return {'Access-Control-Allow-Origin':ALLOWED_ORIGINS.has(origin)?origin:'https://kngslhdn.github.io','Access-Control-Allow-Headers':'authorization, x-client-info, apikey, content-type','Access-Control-Allow-Methods':'GET,OPTIONS','Vary':'Origin','Content-Type':'application/json'}};
+const json=(req:Request,b:unknown,s=200)=>new Response(JSON.stringify(b),{status:s,headers:headers(req)});
+const sb=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+const limitOf=(v:string|null,d=100,m=5000)=>Math.max(1,Math.min(Number(v||d)||d,m));
+const like=(v:string)=>`%${v.replace(/[\\%_]/g,'\\$&')}%`;
+const match=(row:any, fields:string[], search:string)=>!search||fields.some(k=>String(row?.[k]??'').toLowerCase().includes(search.toLowerCase()));
+const isoEnd=(v:string|null)=>v?v.includes('T')?v:`${v}T23:59:59`:null;
+
+async function admin(req:Request){
+  const auth=req.headers.get('Authorization')||'';
+  if(!auth.startsWith('Bearer ')) return {error:json(req,{error:'Unauthorized'},401)};
+  const token=auth.slice(7);
+  const {data:{user},error}=await sb.auth.getUser(token);
+  if(error||!user) return {error:json(req,{error:'Unauthorized'},401)};
+  const {data:profile,error:pe}=await sb.from('admin_profiles').select('full_name,role,active').eq('user_id',user.id).maybeSingle();
+  if(pe) return {error:json(req,{error:'Authorization check failed'},500)};
+  if(!profile?.active) return {error:json(req,{error:'Admin access denied'},403)};
+  return {user,profile};
+}
+
+async function getReport(req:Request,url:URL){
+  const n=limitOf(url.searchParams.get('limit'),5000,5000);
+  const from=url.searchParams.get('from'),to=isoEnd(url.searchParams.get('to'));
+  const type=url.searchParams.get('type')||'overall';
+  const search=(url.searchParams.get('q')||'').trim().toLowerCase();
+  const status=(url.searchParams.get('status')||'').trim().toUpperCase();
+  const start=from||'1970-01-01T00:00:00Z';
+  if(['visitor_summary','key_summary','package_summary'].includes(type)){
+    const r=await getOverallRows(start,to);const by=new Map<string,any>();
+    for(const x of r){const d=x.event_at.slice(0,10);if(!by.has(d))by.set(d,{date:d,visitor_entry:0,visitor_exit:0,key_borrowing:0,key_return:0,package_registration:0,package_distribution:0});const z=by.get(d);if(z[x.record_type]!==undefined)z[x.record_type]++}
+    let rows=[...by.values()].sort((a,b)=>b.date.localeCompare(a.date));
+    if(type==='visitor_summary')rows=rows.map(x=>({date:x.date,visitor_entry:x.visitor_entry,visitor_exit:x.visitor_exit}));
+    if(type==='key_summary')rows=rows.map(x=>({date:x.date,key_borrowing:x.key_borrowing,key_return:x.key_return}));
+    if(type==='package_summary')rows=rows.map(x=>({date:x.date,package_registration:x.package_registration,package_distribution:x.package_distribution}));
+    return json(req,{data:rows.slice(0,n),metrics:summaryMetrics(r),analytics:dailyAnalytics(r)});
+  }
+  let rows=await getOverallRows(start,to);
+  if(type&&type!=='overall')rows=rows.filter(x=>x.record_type===type);
+  if(search)rows=rows.filter(x=>match(x,['reference','person_name','visitor_name','recipient_name','company_name','department','key_number','security_officer_name'],search));
+  if(status)rows=rows.filter(x=>String(x.status||'').toUpperCase()===status);
+  rows.sort((a,b)=>new Date(b.event_at).getTime()-new Date(a.event_at).getTime());
+  return json(req,{data:rows.slice(0,n),metrics:summaryMetrics(rows),analytics:dailyAnalytics(rows)});
+}
+async function getOverallRows(start:string,to:string|null){
+  const [a,b,c,d,e,dist]=await Promise.all([
+    sb.from('visitor_entries').select('submission_id,visitor_name_snapshot,company_name_snapshot,visitor_category,entry_at,work_location,pass_vest_number,security_officer_name').gte('entry_at',start).limit(5000),
+    sb.from('visitor_exits').select('submission_id,visitor_name,company_name,exit_at,security_officer_name,pass_vest_number').gte('exit_at',start).limit(5000),
+    sb.from('key_borrowings').select('submission_id,borrower_name,department,key_number,key_description,quantity,security_officer_name,borrowed_at').gte('borrowed_at',start).limit(5000),
+    sb.from('key_returns').select('submission_id,return_name,department,key_number,key_description,quantity,security_officer_name,returned_at').gte('returned_at',start).limit(5000),
+    sb.from('package_registrations').select('submission_id,recipient_name,company_name,courier_name,item_type,item_count,security_officer_name,created_at').gte('created_at',start).limit(5000),
+    sb.from('package_distribution_history').select('package_number,registered_recipient_name,recipient_name,company_name,courier_name,security_hand_over,distributed_at,status').gte('distributed_at',start).limit(5000)
+  ]);
+  const errs=[a,b,c,d,e,dist].filter(x=>x.error);if(errs.length)throw errs[0].error;const rows:any[]=[];
+  for(const x of a.data||[])if(!to||x.entry_at<to)rows.push({record_type:'visitor_entry',event_at:x.entry_at,reference:x.submission_id,person_name:x.visitor_name_snapshot,visitor_name:x.visitor_name_snapshot,company_name:x.company_name_snapshot,status:'COMPLETED',security_officer_name:x.security_officer_name});
+  for(const x of b.data||[])if(!to||x.exit_at<to)rows.push({record_type:'visitor_exit',event_at:x.exit_at,reference:x.submission_id,person_name:x.visitor_name,visitor_name:x.visitor_name,company_name:x.company_name,status:'COMPLETED',security_officer_name:x.security_officer_name});
+  for(const x of c.data||[])if(!to||x.borrowed_at<to)rows.push({record_type:'key_borrowing',event_at:x.borrowed_at,reference:x.submission_id,person_name:x.borrower_name,department:x.department,key_number:x.key_number,key_description:x.key_description,quantity:x.quantity,status:'BORROWED',security_officer_name:x.security_officer_name});
+  for(const x of d.data||[])if(!to||x.returned_at<to)rows.push({record_type:'key_return',event_at:x.returned_at,reference:x.submission_id,person_name:x.return_name,department:x.department,key_number:x.key_number,key_description:x.key_description,quantity:x.quantity,status:'RETURNED',security_officer_name:x.security_officer_name});
+  for(const x of e.data||[])if(!to||x.created_at<to)rows.push({record_type:'package_registration',event_at:x.created_at,reference:x.submission_id,person_name:x.recipient_name,recipient_name:x.recipient_name,company_name:x.company_name,department:x.courier_name,status:'REGISTERED',security_officer_name:x.security_officer_name});
+  for(const x of dist.data||[])if(!to||x.distributed_at<to)rows.push({record_type:'package_distribution',event_at:x.distributed_at,reference:x.package_number,person_name:x.recipient_name,recipient_name:x.recipient_name,company_name:x.company_name,department:x.security_hand_over,status:x.status,security_officer_name:x.security_hand_over});
+  return rows;
+}
+function summaryMetrics(rows:any[]){const count=(t:string)=>rows.filter(x=>x.record_type===t).length;return {total:rows.length,visitor_entry:count('visitor_entry'),visitor_exit:count('visitor_exit'),key_borrowing:count('key_borrowing'),key_return:count('key_return'),package_registration:count('package_registration'),package_distribution:count('package_distribution')}}
+function dailyAnalytics(rows:any[]){const m=new Map<string,number>();for(const x of rows){const d=String(x.event_at).slice(0,10);m.set(d,(m.get(d)||0)+1)}return [...m.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(([label,total])=>({label:label.slice(5),total}))}
+
+Deno.serve(async req=>{
+  if(req.method==='OPTIONS')return new Response(null,{status:204,headers:headers(req)});if(req.method!=='GET')return json(req,{error:'Method not allowed'},405);
+  try{
+    const auth=await admin(req);if(auth.error)return auth.error;const url=new URL(req.url),action=url.searchParams.get('action')||'summary';
+    if(action==='summary'){
+      const d=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Jakarta',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());const since=new Date(`${d}T00:00:00+07:00`);
+      const [v,e,x,b,r,p,inside,keys,sub,distAll,distToday,totalPackages]=await Promise.all([
+        sb.from('visitors').select('id',{count:'exact',head:true}),sb.from('visitor_entries').select('id',{count:'exact',head:true}).gte('entry_at',since.toISOString()),sb.from('visitor_exits').select('id',{count:'exact',head:true}).gte('exit_at',since.toISOString()),sb.from('key_borrowings').select('id',{count:'exact',head:true}).gte('borrowed_at',since.toISOString()),sb.from('key_returns').select('id',{count:'exact',head:true}).gte('returned_at',since.toISOString()),sb.from('package_registrations').select('id',{count:'exact',head:true}).gte('created_at',since.toISOString()),sb.from('currently_inside').select('entry_id',{count:'exact',head:true}),sb.from('outstanding_keys').select('borrowing_id',{count:'exact',head:true}),sb.from('submissions').select('id',{count:'exact',head:true}),sb.from('package_distributions').select('id',{count:'exact',head:true}),sb.from('package_distributions').select('id',{count:'exact',head:true}).gte('distributed_at',since.toISOString()),sb.from('package_registrations').select('id',{count:'exact',head:true})
+      ]);const errs=[v,e,x,b,r,p,inside,keys,sub,distAll,distToday,totalPackages].filter(x=>x.error);if(errs.length)throw errs[0].error;const ready=Math.max((totalPackages.count||0)-(distAll.count||0),0);return json(req,{profile:auth.profile,summary:{total_visitors:v.count||0,today_entry:e.count||0,today_exit:x.count||0,currently_inside:inside.count||0,today_key_borrowing:b.count||0,today_key_return:r.count||0,today_packages:p.count||0,outstanding_keys:keys.count||0,total_submissions:sub.count||0,total_packages:totalPackages.count||0,distributed_packages:distAll.count||0,distributed_packages_today:distToday.count||0,ready_packages:ready}});
+    }
+    if(action==='activity'){const n=limitOf(url.searchParams.get('limit'),100,500);const {data,error}=await sb.from('recent_activity').select('*').order('submitted_at',{ascending:false}).limit(n);if(error)throw error;return json(req,{data:data||[]})}
+    if(action==='inside'){const n=limitOf(url.searchParams.get('limit'),500,1000);const {data,error}=await sb.from('currently_inside').select('*').order('entry_at',{ascending:false}).limit(n);if(error)throw error;return json(req,{data:data||[]})}
+    if(action==='keys'){const n=limitOf(url.searchParams.get('limit'),500,1000);const {data,error}=await sb.from('outstanding_keys').select('*').order('borrowed_at',{ascending:false}).limit(n);if(error)throw error;return json(req,{data:data||[]})}
+    if(action==='key_history'){
+      const n=limitOf(url.searchParams.get('limit'),5000,5000),q=(url.searchParams.get('q')||'').trim().toLowerCase(),from=url.searchParams.get('from'),to=isoEnd(url.searchParams.get('to')),status=(url.searchParams.get('status')||'').toUpperCase();
+      const [br,rr]=await Promise.all([sb.from('key_borrowings').select('id,submission_id,borrower_name,department,key_number,key_description,quantity,security_officer_name,borrowed_at,return_id').order('borrowed_at',{ascending:false}).limit(n),sb.from('key_returns').select('id,submission_id,borrowing_id,return_name,department,key_number,key_description,quantity,security_officer_name,returned_at').order('returned_at',{ascending:false}).limit(n)]);if(br.error)throw br.error;if(rr.error)throw rr.error;const retMap=new Map((rr.data||[]).map(x=>[x.borrowing_id,x]));const rows:any[]=[];
+      for(const x of br.data||[]){if(from&&x.borrowed_at<from)continue;if(to&&x.borrowed_at>=to)continue;const ret=retMap.get(x.id);const st=ret?'RETURNED':'OUTSTANDING';if(status&&status!==st&&!(status==='BORROWED'&&!ret))continue;if(q&&!match(x,['borrower_name','department','key_number','key_description','security_officer_name'],q))continue;rows.push({record_type:'key_borrowing',person_name:x.borrower_name,department:x.department,key_number:x.key_number,key_description:x.key_description,quantity:x.quantity,event_at:x.borrowed_at,security_officer_name:x.security_officer_name,status:st,submission_id:x.submission_id})}
+      for(const x of rr.data||[]){if(from&&x.returned_at<from)continue;if(to&&x.returned_at>=to)continue;if(status&&status!=='RETURNED')continue;if(q&&!match(x,['return_name','department','key_number','key_description','security_officer_name'],q))continue;rows.push({record_type:'key_return',person_name:x.return_name,department:x.department,key_number:x.key_number,key_description:x.key_description,quantity:x.quantity,event_at:x.returned_at,security_officer_name:x.security_officer_name,status:'RETURNED',submission_id:x.submission_id})}
+      rows.sort((a,b)=>new Date(b.event_at).getTime()-new Date(a.event_at).getTime());return json(req,{data:rows.slice(0,n)});
+    }
+    if(action==='packages'){
+      const n=limitOf(url.searchParams.get('limit'),200,1000),search=(url.searchParams.get('q')||'').trim().toLowerCase();const {data:packages,error}=await sb.from('package_registrations').select('id,submission_id,courier_name,phone,company_name,item_type,item_count,recipient_type,recipient_name,security_officer_name,photo_storage_path,created_at').order('created_at',{ascending:false}).limit(n);if(error)throw error;const rows=packages||[],ids=rows.map(x=>x.id);let ds:any[]=[];if(ids.length){const {data,error:de}=await sb.from('package_distributions').select('package_registration_id,recipient_name,security_hand_over,distributed_at,status').in('package_registration_id',ids);if(de)throw de;ds=data||[]}const dm=new Map(ds.map(x=>[x.package_registration_id,x]));const filtered=rows.filter(r=>!search||[r.submission_id,r.courier_name,r.phone,r.company_name,r.item_type,r.recipient_type,r.recipient_name,r.security_officer_name].some(x=>String(x||'').toLowerCase().includes(search)));for(const r of filtered){if(r.photo_storage_path){const ss=await sb.storage.from('package-photos').createSignedUrl(r.photo_storage_path,600);if(!ss.error)r.photo_url=ss.data.signedUrl}const drow=dm.get(r.id);r.distribution_status=drow?.status||'READY FOR DISTRIBUTION';r.distributed_to=drow?.recipient_name||null;r.distribution_security_hand_over=drow?.security_hand_over||null;r.distributed_at=drow?.distributed_at||null}return json(req,{data:filtered});
+    }
+    if(action==='distribution_history'){const n=limitOf(url.searchParams.get('limit'),200,5000),search=(url.searchParams.get('q')||'').trim(),from=url.searchParams.get('from'),to=isoEnd(url.searchParams.get('to')),status=url.searchParams.get('status');let q=sb.from('package_distribution_history').select('*').order('distributed_at',{ascending:false}).limit(n);if(from)q=q.gte('distributed_at',from);if(to)q=q.lt('distributed_at',to);if(status)q=q.eq('status',status);if(search){const pp=like(search);q=q.or(`package_number.ilike.${pp},recipient_name.ilike.${pp},registered_recipient_name.ilike.${pp},company_name.ilike.${pp},courier_name.ilike.${pp},security_hand_over.ilike.${pp}`)}const {data,error}=await q;if(error)throw error;return json(req,{data:data||[]})}
+    if(action==='visitors'){const n=limitOf(url.searchParams.get('limit'),500,2000),search=(url.searchParams.get('q')||'').trim().toLowerCase(),from=url.searchParams.get('from'),to=isoEnd(url.searchParams.get('to'));let q=sb.from('visitor_entries').select('id,visitor_id,work_location,purpose,security_officer_name,pass_vest_number,entry_at,exit_id,visitors(full_name,phone,company_name,category)').order('entry_at',{ascending:false}).limit(n);if(from)q=q.gte('entry_at',from);if(to)q=q.lt('entry_at',to);const {data:entries,error}=await q;if(error)throw error;const {data:exits,error:xe}=await sb.from('visitor_exits').select('id,entry_id,exit_at,security_officer_name').limit(n);if(xe)throw xe;const em=new Map((exits||[]).map(x=>[x.entry_id,x]));const data=(entries||[]).map(en=>{const v=Array.isArray(en.visitors)?en.visitors[0]:en.visitors;return {...en,visitor:v,exit:em.get(en.id)||null}}).filter(en=>{if(!search)return true;const v=en.visitor||{};return [v.full_name,v.phone,v.company_name,en.pass_vest_number,en.work_location].some(x=>String(x||'').toLowerCase().includes(search))});return json(req,{data})}
+    if(action==='report')return await getReport(req,url);
+    return json(req,{error:'Unknown action'},400);
+  }catch(e){console.error(e);return json(req,{error:e instanceof Error?e.message:'Admin console request failed'},500)}
+});
