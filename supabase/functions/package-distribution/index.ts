@@ -19,11 +19,11 @@ async function requireAdmin(req: Request) {
   const { data, error } = await sb.auth.getUser(token);
   if (error || !data.user) throw new Error("Unauthorized");
   const { data: profile, error: profileError } = await sb.from("admin_profiles").select("user_id,active,role").eq("user_id", data.user.id).eq("active", true).maybeSingle();
-  if (profileError || !profile || !["ADMIN", "MANAGER", "SUPERADMIN"].includes(profile.role)) throw new Error("Forbidden");
+  const role = String(profile?.role || "").toUpperCase();
+  if (profileError || !profile || !["ADMIN", "MANAGER", "SUPERADMIN"].includes(role)) throw new Error("Forbidden");
   return data.user;
 }
 
-function like(value: string) { return `%${value.replace(/[\\%_]/g, "\\$&")}%`; }
 function isUuid(value: string) { return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value); }
 
 Deno.serve(async (req) => {
@@ -43,31 +43,32 @@ Deno.serve(async (req) => {
       const distributedIds = (distributed || []).map((r) => r.package_registration_id);
       if (distributedIds.length) query = query.not("id", "in", `(${distributedIds.join(",")})`);
 
-      if (q) {
-        const pattern = like(q);
-        const textFilters = [
-          `recipient_name.ilike.${pattern}`,
-          `courier_name.ilike.${pattern}`,
-          `company_name.ilike.${pattern}`,
-          `item_type.ilike.${pattern}`,
-          `recipient_type.ilike.${pattern}`,
-        ];
-        // submission_id is UUID and PostgreSQL does not support ilike on UUID.
-        // Only add an exact UUID filter when the search text is actually a UUID.
-        if (isUuid(q)) {
-          const { data: exact } = await sb.from("package_registrations")
-            .select("id,submission_id,courier_name,phone,company_name,item_type,item_count,recipient_type,recipient_name,security_officer_name,created_at")
-            .eq("submission_id", q).maybeSingle();
-          if (exact && !distributedIds.includes(exact.id)) {
-            return json({ packages: [{ ...exact, package_number: exact.submission_id, status: "READY FOR DISTRIBUTION" }] });
-          }
+      if (isUuid(q)) {
+        const { data: exact } = await sb.from("package_registrations")
+          .select("id,submission_id,courier_name,phone,company_name,item_type,item_count,recipient_type,recipient_name,security_officer_name,created_at")
+          .eq("submission_id", q).maybeSingle();
+        if (exact && !distributedIds.includes(exact.id)) {
+          return json({ packages: [{ ...exact, package_number: exact.submission_id, status: "READY FOR DISTRIBUTION" }] });
         }
-        query = query.or(textFilters.join(","));
       }
 
       const { data, error } = await query;
       if (error) return json({ error: error.message }, 400);
-      return json({ packages: (data || []).map((p) => ({ ...p, package_number: p.submission_id, status: "READY FOR DISTRIBUTION" })) });
+
+      const term = q.toLowerCase();
+      const filtered = (data || []).filter((p) => {
+        if (!term) return true;
+        const searchText = [
+          p.recipient_name,
+          p.courier_name,
+          p.company_name,
+          p.item_type,
+          p.recipient_type,
+          p.submission_id,
+        ].join(" ").toLowerCase();
+        return searchText.includes(term);
+      });
+      return json({ packages: filtered.map((p) => ({ ...p, package_number: p.submission_id, status: "READY FOR DISTRIBUTION" })) });
     }
 
     if (req.method === "POST") {

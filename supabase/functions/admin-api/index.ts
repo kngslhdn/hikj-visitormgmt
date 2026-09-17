@@ -15,7 +15,8 @@ async function admin(req:Request){
   if(error||!user) return {error:json(req,{error:'Unauthorized'},401)};
   const {data:profile,error:pe}=await sb.from('admin_profiles').select('full_name,role,active').eq('user_id',user.id).maybeSingle();
   if(pe) return {error:json(req,{error:'Authorization check failed'},500)};
-  if(!profile?.active) return {error:json(req,{error:'Admin access denied'},403)};
+  const role = String(profile?.role || '').toUpperCase();
+  if(!profile?.active || !['ADMIN','MANAGER','SUPERADMIN'].includes(role)) return {error:json(req,{error:'Admin access denied'},403)};
   return {user,profile};
 }
 
@@ -75,11 +76,11 @@ Deno.serve(async req=>{
         if(de) throw de; distributions=data||[];
       }
       const dmap=new Map(distributions.map(x=>[x.package_registration_id,x]));
-      const filtered=rows.filter(row=>{
+      const filtered:any[] = rows.filter((row:any)=>{
         if(!search)return true;
         return [row.submission_id,row.courier_name,row.phone,row.company_name,row.item_type,row.recipient_type,row.recipient_name,row.security_officer_name].some(x=>String(x||'').toLowerCase().includes(search));
       });
-      for(const row of filtered){
+      for(const row of filtered as any[]){
         if(row.photo_storage_path){const s=await sb.storage.from('package-photos').createSignedUrl(row.photo_storage_path,600);if(!s.error) row.photo_url=s.data.signedUrl;}
         const d=dmap.get(row.id);
         row.distribution_status=d?.status||'READY FOR DISTRIBUTION';
