@@ -17,6 +17,7 @@ as $$
     from public.admin_profiles
     where user_id = auth.uid()
       and active = true
+      and upper(role::text) in ('ADMIN', 'MANAGER', 'SUPERADMIN')
   );
 $$;
 
