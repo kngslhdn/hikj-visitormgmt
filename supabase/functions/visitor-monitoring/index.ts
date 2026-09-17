@@ -42,8 +42,8 @@ Deno.serve(async (req: Request) => {
     const limit = Math.min(Math.max(Number(url.searchParams.get('limit') || 5000), 1), 5000);
 
     const [entriesResult, exitsResult] = await Promise.all([
-      sb.from('visitor_entries').select('id,submission_id,visitor_id,visitor_name_snapshot,phone_snapshot,company_name_snapshot,category_snapshot,visitor_name,visitor_phone,visitor_company_name,visitor_category,work_location,purpose,security_officer_name,pass_vest_number,entry_at,exit_id').order('entry_at', { ascending: false }).limit(5000),
-      sb.from('visitor_exits').select('id,submission_id,visitor_id,entry_id,visitor_name,pass_vest_number,security_officer_name,exit_at').order('exit_at', { ascending: false }).limit(5000)
+      sb.from('visitor_entries').select('id,submission_id,visitor_id,visitor_name_snapshot,phone_snapshot,company_name_snapshot,category_snapshot,visitor_name,visitor_phone,visitor_company_name,visitor_category,work_location,purpose,security_officer_name,pass_vest_number,entry_at,exit_id,visitors(full_name,phone,company_name,category)').order('entry_at', { ascending: false }).limit(5000),
+      sb.from('visitor_exits').select('id,submission_id,visitor_id,entry_id,visitor_name,company_name,pass_vest_number,security_officer_name,exit_at').order('exit_at', { ascending: false }).limit(5000)
     ]);
     if (entriesResult.error) throw entriesResult.error;
     if (exitsResult.error) throw exitsResult.error;
@@ -58,11 +58,12 @@ Deno.serve(async (req: Request) => {
       if (to && new Date(e.entry_at).getTime() >= new Date(to).getTime()) continue;
       const x = exitByEntry.get(e.id) || (e.exit_id ? exits.find(v => v.id === e.exit_id) : null) || null;
       if (x) matchedExitIds.add(x.id);
+      const identity = Array.isArray(e.visitors) ? e.visitors[0] : e.visitors;
       const visitor = {
-        full_name: e.visitor_name_snapshot || e.visitor_name || x?.visitor_name || '',
-        phone: e.phone_snapshot || e.visitor_phone || '',
-        company_name: e.company_name_snapshot || e.visitor_company_name || '',
-        category: e.category_snapshot || e.visitor_category || ''
+        full_name: e.visitor_name_snapshot || e.visitor_name || identity?.full_name || x?.visitor_name || '',
+        phone: e.phone_snapshot || e.visitor_phone || identity?.phone || '',
+        company_name: e.company_name_snapshot || e.visitor_company_name || identity?.company_name || x?.company_name || '',
+        category: e.category_snapshot || e.visitor_category || identity?.category || ''
       };
       const haystack = [visitor.full_name, visitor.phone, visitor.company_name, visitor.category, e.work_location, e.purpose, e.pass_vest_number, e.security_officer_name].join(' ').toLowerCase();
       if (q && !haystack.includes(q)) continue;
@@ -103,7 +104,7 @@ Deno.serve(async (req: Request) => {
         id: `exit-${x.id}`,
         submission_id: x.submission_id,
         visitor_id: x.visitor_id,
-        visitor: { full_name: x.visitor_name || '', phone: '', company_name: '', category: '' },
+        visitor: { full_name: x.visitor_name || '', phone: '', company_name: x.company_name || '', category: '' },
         work_location: '',
         purpose: '',
         pass_vest_number: x.pass_vest_number,
