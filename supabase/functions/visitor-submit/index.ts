@@ -55,15 +55,14 @@ Deno.serve(async req=>{
    const key=clean(body.key_number||body.keyNumber);const quantity=Number(body.quantity||body.qty||1);
    if(!key)return json({error:'Please enter Key Number.'},400);
    if(!Number.isInteger(quantity)||quantity<1)return json({error:'Quantity of Keys must be a whole number greater than 0.'},400);
-   const {data:borrowing,error:be}=await supabase.from('key_borrowings').select('id,key_number,key_description,quantity,borrower_name,department').eq('key_number',key).is('return_id',null).order('borrowed_at',{ascending:false}).limit(1).maybeSingle();
+   const {data:borrowings,error:be}=await supabase.from('key_borrowings').select('id,key_number,key_description,quantity,borrower_name,department').is('return_id',null).order('borrowed_at',{ascending:false}).limit(5000);
    if(be)throw be;
-   if(!borrowing)return json({ok:false,error:`Key ${key} is not currently borrowed. Return rejected.`},409);
-   if(quantity>Number(borrowing.quantity))return json({ok:false,error:`Return quantity (${quantity}) cannot exceed borrowed quantity (${borrowing.quantity}) for key ${key}.`},400);
-   if(quantity!==Number(borrowing.quantity))return json({ok:false,error:`Partial key return is not supported. Please return all ${borrowing.quantity} key(s) for ${key}.`},400);
-   returnBorrowing=borrowing;
+   returnBorrowing=(borrowings||[]).find(b=>normText(b.key_number)===normText(key))||null;
+   if(!returnBorrowing)return json({ok:false,error:`Key ${key} is not currently borrowed. Return rejected: Key Number does not match any outstanding Key Borrowing.`},409);
   }
 
   const submissionId=`HIKJ-${new Date().toISOString().replace(/[-:TZ.]/g,'').slice(0,14)}-${crypto.randomUUID().slice(0,6).toUpperCase()}`;const {data:submission,error:se}=await supabase.from('submissions').insert({submission_id:submissionId,submission_type:type,visitor_id:visitorId,status:'submitted',idempotency_key:idem||null,metadata:{source_form:rawType}}).select('id').single();if(se)throw se;
+  let keyReturnResult:any=null;
   if(type==='visitor_entry'){
    const category=clean(val(body,'category','kategori'));const {error}=await supabase.from('visitor_entries').insert({submission_id:submission.id,visitor_id:visitorId,visitor_name:name,visitor_phone:mobile||null,visitor_company_name:company||null,visitor_category:category,visitor_name_snapshot:name,phone_snapshot:mobile||null,company_name_snapshot:company||null,category_snapshot:category,work_location:clean(val(body,'work_location','lokasi')),purpose:clean(val(body,'purpose','tujuan')),security_officer_name:clean(val(body,'security_officer_name','security')),pass_vest_number:clean(val(body,'pass_vest_number','pass')),entry_at:timestamp(body.entry_at||body.datetime)});if(error)throw error;
   }else if(type==='visitor_exit'){
@@ -72,10 +71,12 @@ Deno.serve(async req=>{
   }else if(type==='key_borrowing'){
    const key=clean(body.key_number||body.keyNumber);const quantity=Number(body.quantity||body.qty||1);if(!key)return json({error:'Please enter Key Number.'},400);if(!Number.isInteger(quantity)||quantity<1)return json({error:'Quantity of Keys must be a whole number greater than 0.'},400);const {data:outstanding,error:oe}=await supabase.from('key_borrowings').select('id,borrower_name,quantity').eq('key_number',key).is('return_id',null).order('borrowed_at',{ascending:false}).limit(1).maybeSingle();if(oe)throw oe;if(outstanding)return json({ok:false,error:`Key ${key} is currently borrowed by ${outstanding.borrower_name}. Please return the key before borrowing it again.`},409);const {error}=await supabase.from('key_borrowings').insert({submission_id:submission.id,borrower_name:clean(val(body,'borrower_name','borrowerName')),department:clean(body.department),key_number:key,key_description:clean(body.key_description||body.description),quantity,security_officer_name:clean(val(body,'security_officer_name','security')),borrowed_at:timestamp(body.borrowed_at||body.datetime)});if(error)throw error;
   }else if(type==='key_return'){
-   const key=clean(body.key_number||body.keyNumber);const quantity=Number(body.quantity||body.qty||1);const borrowing=returnBorrowing;const {data:ret,error}=await supabase.from('key_returns').insert({submission_id:submission.id,borrowing_id:borrowing.id,return_name:clean(val(body,'return_name','returnName')),department:clean(body.department)||borrowing.department,key_number:key,key_description:clean(body.key_description||body.description)||borrowing.key_description,quantity,security_officer_name:clean(val(body,'security_officer_name','security')),returned_at:timestamp(body.returned_at||body.datetime)}).select('id').single();if(error)throw error;if(borrowing.id)await supabase.from('key_borrowings').update({return_id:ret.id}).eq('id',borrowing.id);
+   const key=clean(body.key_number||body.keyNumber);const quantity=Number(body.quantity||body.qty||1);const borrowing=returnBorrowing;const borrowedQuantity=Number(borrowing.quantity);const discrepancyQty=quantity!==borrowedQuantity;
+   const {data:ret,error}=await supabase.from('key_returns').insert({submission_id:submission.id,borrowing_id:borrowing.id,return_name:clean(val(body,'return_name','returnName')),department:clean(body.department)||borrowing.department,key_number:borrowing.key_number,quantity,borrowed_quantity:borrowedQuantity,discrepancy_qty:discrepancyQty,security_officer_name:clean(val(body,'security_officer_name','security')),returned_at:timestamp(body.returned_at||body.datetime)}).select('id').single();if(error)throw error;if(borrowing.id)await supabase.from('key_borrowings').update({return_id:ret.id}).eq('id',borrowing.id);
+   keyReturnResult={discrepancy_qty:discrepancyQty,borrowed_quantity:borrowedQuantity,returned_quantity:quantity,key_number:borrowing.key_number};
   }else{
    const path=await uploadPackagePhoto(clean(body.foto||body.photo_data_url));const {error}=await supabase.from('package_registrations').insert({submission_id:submission.id,courier_name:clean(val(body,'courier_name','namaPengantar')),phone:mobile||null,phone_normalized:phone(mobile)||null,company_name:company,item_type:clean(val(body,'item_type','jenisBarang')).toUpperCase(),item_count:Number(body.item_count||body.number_of_items||body.jumlah||1),recipient_type:clean(val(body,'recipient_type','tujuan')).toUpperCase(),recipient_name:clean(val(body,'recipient_name','namaTujuan')),security_officer_name:clean(val(body,'security_officer_name','security')),photo_storage_path:path});if(error)throw error;
   }
-  await supabase.from('submissions').update({status:'completed'}).eq('id',submission.id);return json({ok:true,submission_id:submissionId});
+  await supabase.from('submissions').update({status:'completed'}).eq('id',submission.id);return json({ok:true,submission_id:submissionId,...(keyReturnResult?{key_return:keyReturnResult}:{})});
  }catch(e){console.error(e);return json({error:e instanceof Error?e.message:'Submission failed'},500)}
 });
