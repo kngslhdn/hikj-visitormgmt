@@ -24,7 +24,7 @@ async function visitorIdentity(name:string,mobile:string,company:string,category
 
 async function findExitEntry(pass:string){
  const passKey=normText(pass);
- const {data,error}=await supabase.from('visitor_entries').select('id,visitor_id,visitor_name,pass_vest_number,entry_at').is('exit_id',null).order('entry_at',{ascending:false}).limit(5000);
+ const {data,error}=await supabase.from('visitor_entries').select('id,visitor_id,visitor_name,visitor_name_snapshot,pass_vest_number,entry_at').is('exit_id',null).order('entry_at',{ascending:false}).limit(5000);
  if(error)throw error;
  return (data||[]).find(e=>passKey&&normText(e.pass_vest_number)===passKey)||null;
 }
@@ -40,8 +40,8 @@ Deno.serve(async req=>{
   const idem=clean(req.headers.get('idempotency-key')||body.idempotency_key);if(idem){const {data}=await supabase.from('submissions').select('submission_id').eq('idempotency_key',idem).maybeSingle();if(data)return json({ok:true,duplicate:true,submission_id:data.submission_id});}
   const name=clean(val(body,'name','visitor_name','nama','returnName','borrowerName','namaPengantar')),mobile=clean(val(body,'phone','mobile_phone','telepon')),company=clean(val(body,'company_name','company','perusahaan'));let visitorId:string|null=null;let matchedExitEntry:any=null;
   if(type==='visitor_entry'){
-   const pass=clean(val(body,'pass_vest_number','pass')),officer=clean(val(body,'security_officer_name','security'));if(!name||!pass||!officer)return json({error:'Required visitor fields are missing'},400);
-   visitorId=await visitorIdentity(name,mobile,company,clean(body.category)||null);
+   const pass=clean(val(body,'pass_vest_number','pass')),officer=clean(val(body,'security_officer_name','security')),category=clean(val(body,'category','kategori'));if(!name||!pass||!officer||!category)return json({error:'Required visitor fields are missing'},400);
+   visitorId=await visitorIdentity(name,mobile,company,category);
   }else if(type==='visitor_exit'){
    const pass=clean(val(body,'pass_vest_number','pass')),officer=clean(val(body,'security_officer_name','security'));
    if(!pass||!officer)return json({error:'Pass / Vest Number and Security Officer Name are required.'},400);
@@ -50,7 +50,6 @@ Deno.serve(async req=>{
    visitorId=matchedExitEntry.visitor_id;
   }
 
-  // Preflight key return validation before creating a submission. Invalid returns must not create a misleading submission record.
   let returnBorrowing:any=null;
   if(type==='key_return'){
    const key=clean(body.key_number||body.keyNumber);const quantity=Number(body.quantity||body.qty||1);
@@ -66,9 +65,9 @@ Deno.serve(async req=>{
 
   const submissionId=`HIKJ-${new Date().toISOString().replace(/[-:TZ.]/g,'').slice(0,14)}-${crypto.randomUUID().slice(0,6).toUpperCase()}`;const {data:submission,error:se}=await supabase.from('submissions').insert({submission_id:submissionId,submission_type:type,visitor_id:visitorId,status:'submitted',idempotency_key:idem||null,metadata:{source_form:rawType}}).select('id').single();if(se)throw se;
   if(type==='visitor_entry'){
-   const {error}=await supabase.from('visitor_entries').insert({submission_id:submission.id,visitor_id:visitorId,visitor_name:name,visitor_phone:mobile||null,visitor_company_name:company||null,visitor_category:clean(body.category)||null,work_location:clean(val(body,'work_location','lokasi')),purpose:clean(val(body,'purpose','tujuan')),security_officer_name:clean(val(body,'security_officer_name','security')),pass_vest_number:clean(val(body,'pass_vest_number','pass')),entry_at:timestamp(body.entry_at||body.datetime)});if(error)throw error;
+   const category=clean(val(body,'category','kategori'));const {error}=await supabase.from('visitor_entries').insert({submission_id:submission.id,visitor_id:visitorId,visitor_name:name,visitor_phone:mobile||null,visitor_company_name:company||null,visitor_category:category,visitor_name_snapshot:name,phone_snapshot:mobile||null,company_name_snapshot:company||null,category_snapshot:category,work_location:clean(val(body,'work_location','lokasi')),purpose:clean(val(body,'purpose','tujuan')),security_officer_name:clean(val(body,'security_officer_name','security')),pass_vest_number:clean(val(body,'pass_vest_number','pass')),entry_at:timestamp(body.entry_at||body.datetime)});if(error)throw error;
   }else if(type==='visitor_exit'){
-   const pass=clean(val(body,'pass_vest_number','pass'));const entry=matchedExitEntry;const exitName=clean(entry?.visitor_name||'');
+   const pass=clean(val(body,'pass_vest_number','pass'));const entry=matchedExitEntry;const exitName=clean(entry?.visitor_name||entry?.visitor_name_snapshot||'');
    const {data:ex,error}=await supabase.from('visitor_exits').insert({submission_id:submission.id,visitor_id:visitorId,entry_id:entry.id,visitor_name:exitName,pass_vest_number:pass,security_officer_name:clean(val(body,'security_officer_name','security')),exit_at:new Date().toISOString()}).select('id').single();if(error)throw error;if(entry.id)await supabase.from('visitor_entries').update({exit_id:ex.id}).eq('id',entry.id);
   }else if(type==='key_borrowing'){
    const key=clean(body.key_number||body.keyNumber);const quantity=Number(body.quantity||body.qty||1);if(!key)return json({error:'Please enter Key Number.'},400);if(!Number.isInteger(quantity)||quantity<1)return json({error:'Quantity of Keys must be a whole number greater than 0.'},400);const {data:outstanding,error:oe}=await supabase.from('key_borrowings').select('id,borrower_name,quantity').eq('key_number',key).is('return_id',null).order('borrowed_at',{ascending:false}).limit(1).maybeSingle();if(oe)throw oe;if(outstanding)return json({ok:false,error:`Key ${key} is currently borrowed by ${outstanding.borrower_name}. Please return the key before borrowing it again.`},409);const {error}=await supabase.from('key_borrowings').insert({submission_id:submission.id,borrower_name:clean(val(body,'borrower_name','borrowerName')),department:clean(body.department),key_number:key,key_description:clean(body.key_description||body.description),quantity,security_officer_name:clean(val(body,'security_officer_name','security')),borrowed_at:timestamp(body.borrowed_at||body.datetime)});if(error)throw error;
