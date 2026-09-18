@@ -1,32 +1,32 @@
--- Key Control V2 schema sync
-alter table public.key_borrowings add column if not exists expected_return_at timestamptz;
+-- Key Control V2: transaction-based borrowing and multiple return events
+-- Expected return scheduling is intentionally not part of the operational key workflow.
 alter table public.key_returns add column if not exists returned_by text;
 update public.key_returns set returned_by=return_name where returned_by is null;
 drop view if exists public.outstanding_keys;
+drop view if exists public.key_control_transactions;
 alter table public.key_borrowings drop constraint if exists key_borrowings_return_id_fkey;
 drop index if exists key_borrowings_one_outstanding_per_key_idx;
 alter table public.key_borrowings drop column if exists return_id;
+alter table public.key_borrowings drop column if exists expected_return_at;
 alter table public.key_returns drop constraint if exists key_returns_borrowed_quantity_positive;
 create or replace view public.key_control_transactions with (security_invoker=true) as
 select b.id borrowing_id,s.submission_id,b.borrower_name,b.department,b.key_number,b.key_description,
 b.quantity borrowed_quantity,coalesce(sum(r.quantity),0)::integer returned_quantity,
 greatest(b.quantity-coalesce(sum(r.quantity),0),0)::integer outstanding_quantity,
 max(r.returned_at) last_returned_at,b.security_officer_name issued_by_security,b.borrowed_at,
-b.expected_return_at,
 case when greatest(b.quantity-coalesce(sum(r.quantity),0),0)=0 then 'CLOSED'
-when b.expected_return_at is not null and now()>b.expected_return_at then 'OVERDUE'
 when coalesce(sum(r.quantity),0)>0 then 'PARTIALLY RETURNED' else 'ACTIVE' end status,
 false as discrepancy
 from public.key_borrowings b join public.submissions s on s.id=b.submission_id
 left join public.key_returns r on r.borrowing_id=b.id
 group by b.id,s.submission_id,b.borrower_name,b.department,b.key_number,b.key_description,b.quantity,
-b.security_officer_name,b.borrowed_at,b.expected_return_at;
+b.security_officer_name,b.borrowed_at;
 create or replace view public.outstanding_keys with (security_invoker=true) as
 select borrowing_id,submission_id,borrower_name,department,key_number,key_description,borrowed_quantity quantity,
 borrowed_quantity,returned_quantity,outstanding_quantity,issued_by_security security_officer_name,
-issued_by_security,borrowed_at,expected_return_at,last_returned_at,status,discrepancy
+issued_by_security,borrowed_at,last_returned_at,status,discrepancy
 from public.key_control_transactions where outstanding_quantity>0;
-create or replace function public.validate_key_return_quantity() returns trigger language plpgsql set search_path=public as $
+create or replace function public.validate_key_return_quantity() returns trigger language plpgsql set search_path=public as $$
 declare borrowed_qty integer; returned_qty integer;
 begin
  if new.borrowing_id is null then raise exception 'Borrowing transaction is required'; end if;
