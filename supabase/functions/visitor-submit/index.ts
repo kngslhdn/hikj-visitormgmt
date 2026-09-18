@@ -90,7 +90,9 @@ Deno.serve(async req=>{
    const description=clean(body.key_description||body.description);
    const officer=clean(val(body,'security_officer_name','security'));
    if(!borrowerName||!officer)return json({error:'Borrower Name and Issued By Security Officer are required.'},400);
-   const {error:ie}=await supabase.from('key_borrowings').insert({submission_id:submission.id,borrower_name:borrowerName,department,key_number:key,key_description:description,quantity,security_officer_name:officer,borrowed_at:timestamp(body.borrowed_at||body.datetime),expected_return_at:timestamp(body.expected_return_at||body.expectedReturn)});
+   const borrowingPayload={submission_id:submission.id,borrower_name:borrowerName,department,key_number:key,key_description:description,quantity,security_officer_name:officer,borrowed_at:timestamp(body.borrowed_at||body.datetime)} as Record<string,unknown>;
+   if(clean(body.expected_return_at||body.expectedReturn)) borrowingPayload.expected_return_at=timestamp(body.expected_return_at||body.expectedReturn);
+   const {error:ie}=await supabase.from('key_borrowings').insert(borrowingPayload);
    if(ie)throw ie;
   }else if(type==='key_return'){
    const quantity=Number(body.quantity||body.qty||1),borrowing=returnBorrowing,returnedBy=clean(val(body,'return_name','returnName','returned_by','returnedBy')),officer=clean(val(body,'security_officer_name','security')),department=clean(body.department)||borrowing.department;
