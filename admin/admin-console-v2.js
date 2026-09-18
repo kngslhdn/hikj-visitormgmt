@@ -16,7 +16,6 @@ async function visitors(){const p=$('aPage');p.innerHTML=shell('Visitor Monitori
 async function keys(){
  const p=$('aPage');
  p.innerHTML=shell('Key Monitoring','Live key custody control: one transaction per borrowing, with multiple return events.',`<button class="a-btn" id="kr">Refresh</button>`)+tabs('ktab',['All Record','Key Returned','Outstanding'])+filters('kf','Transaction, borrower, returner, department or key',['All Status','ACTIVE','PARTIALLY RETURNED','CLOSED','DISCREPANCY'])+`
- <div class="a-metrics" id="km"></div>
  <section class="a-panel"><div class="a-table"><table><thead id="kh"></thead><tbody id="krows"></tbody></table></div><div class="a-note" id="knote"></div></section>`;
  const load=async()=>{
    const r=await api('key_history',{limit:5000,q:$('kfQ').value,from:$('kfFrom').value,to:$('kfTo').value?$('kfTo').value+'T23:59:59':'',status:$('kfStatus').value.toUpperCase()});
