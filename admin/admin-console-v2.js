@@ -57,7 +57,7 @@ async function keys(){
        </tr>`
      }).join(''):empty(10,'No key transactions found.');
    }
-   $('knote').textContent=(tab==='Return Events' ? 'Return events: ' : 'Transactions: ')+((tab==='Return Events')?tx.flatMap(x=>x.return_events||[]).length:z.length)+' record(s) found.';
+   $('knote').textContent=(tab==='Return Events' ? 'Return events: ' : 'Transactions: ')+((tab==='Return Events')?tx.flatMap(x=>x.return_events||[]).length:tx.length)+' record(s) found.';
  };
  bindFilters(load,'kf','ktab');$('kr').onclick=load;await load();
 }
