@@ -176,7 +176,7 @@
     try {
       const data = await callApi('', { method:'POST', body: JSON.stringify({ package_registration_id: selected.id, recipient_name: recipient, security_hand_over: security }) });
       notice.textContent = '';
-      document.querySelector('#pdSelected').innerHTML = `<div class="pd-success"><h3>Package successfully distributed.</h3><p><b>Package Number:</b> ${esc(data.distribution.package_number)}</p><p><b>Recipient:</b> ${esc(data.distribution.recipient_name)}</p><p><b>Security Hand Over:</b> ${esc(data.distribution.security_hand_over)}</p><p><b>Distribution Date &amp; Time:</b> ${fmt(data.distribution.distributed_at)}</p><button class="submit" id="pdBack">SEARCH ANOTHER PACKAGE</button></div>`;
+      document.querySelector('#pdSelected').innerHTML = `<div class="pd-success"><h3>Package successfully distributed.</h3><p><b>Distribution ID:</b> ${esc(data.distribution.distribution_number||'—')}</p><p><b>Package Number:</b> ${esc(data.distribution.package_number)}</p><p><b>Recipient:</b> ${esc(data.distribution.recipient_name)}</p><p><b>Security Hand Over:</b> ${esc(data.distribution.security_hand_over)}</p><p><b>Distribution Date &amp; Time:</b> ${fmt(data.distribution.distributed_at)}</p><button class="submit" id="pdBack">SEARCH ANOTHER PACKAGE</button></div>`;
       document.querySelector('#pdBack').onclick = () => { selected = null; renderAuth(); };
     } catch (e) {
       notice.textContent = e.message || 'Unable to complete package distribution. Please try again.';
