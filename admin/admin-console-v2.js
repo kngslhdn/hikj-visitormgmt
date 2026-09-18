@@ -15,7 +15,7 @@ function bindFilters(load,prefix,tabAttr){document.querySelectorAll(`[data-${tab
 async function visitors(){const p=$('aPage');p.innerHTML=shell('Visitor Monitoring','Complete Visitor Entry and Visitor Exit history.',`<button class="a-btn" id="vr">Refresh</button>`)+tabs('vtab',['All Record','Visitor Entry','Visitor Exit'])+filters('vf','Name, phone, company, pass or location',['All Status','Inside','Exited'])+`<section class="a-panel"><div class="a-table"><table><thead><tr><th>Visitor</th><th>Company</th><th>Category</th><th>Location</th><th>Pass</th><th>Entry</th><th>Exit</th><th>Status</th></tr></thead><tbody id="vrows"></tbody></table></div><div class="a-note" id="vnote"></div></section>`;const load=async()=>{const r=await api('visitors',{limit:2000,q:$('vfQ').value,from:$('vfFrom').value,to:$('vfTo').value?$('vfTo').value+'T23:59:59':''});let z=r.data||[];const tab=document.querySelector('[data-vtab].active')?.dataset.vtab;if(tab==='Visitor Entry')z=z.filter(x=>!x.exit);if(tab==='Visitor Exit')z=z.filter(x=>x.exit);if($('vfStatus').value==='Inside')z=z.filter(x=>!x.exit);if($('vfStatus').value==='Exited')z=z.filter(x=>x.exit);$('vrows').innerHTML=z.length?z.map(x=>{const v=x.visitor||{};return `<tr><td><b>${esc(v.full_name||'—')}</b><small>${esc(v.phone||'—')}</small></td><td>${esc(v.company_name||'—')}</td><td>${esc(v.category||'—')}</td><td>${esc(x.work_location||'—')}</td><td>${esc(x.pass_vest_number||'—')}</td><td>${fmt(x.entry_at)}</td><td>${fmt(x.exit?.exit_at)}</td><td>${badge(x.exit?'exit':'entry',x.exit?'EXITED':'INSIDE')}</td></tr>`}).join(''):empty(8);$('vnote').textContent=z.length+' record'+(z.length===1?'':'s')+' found.'};bindFilters(load,'vf','vtab');$('vr').onclick=load;await load()}
 async function keys(){
  const p=$('aPage');
- p.innerHTML=shell('Key Monitoring','Live key custody control: one transaction per borrowing, with multiple return events.',`<button class="a-btn" id="kr">Refresh</button>`)+tabs('ktab',['Transactions','Return Events','Outstanding'])+filters('kf','Transaction, borrower, returner, department or key',['All Status','ACTIVE','PARTIALLY RETURNED','OVERDUE','CLOSED','DISCREPANCY'])+`
+ p.innerHTML=shell('Key Monitoring','Live key custody control: one transaction per borrowing, with multiple return events.',`<button class="a-btn" id="kr">Refresh</button>`)+tabs('ktab',['Transactions','Return Events','Outstanding'])+filters('kf','Transaction, borrower, returner, department or key',['All Status','ACTIVE','PARTIALLY RETURNED','CLOSED','DISCREPANCY'])+`
  <div class="a-metrics" id="km"></div>
  <section class="a-panel"><div class="a-table"><table><thead id="kh"></thead><tbody id="krows"></tbody></table></div><div class="a-note" id="knote"></div></section>`;
  const load=async()=>{
@@ -26,12 +26,11 @@ async function keys(){
    const totalOutstanding=tx.reduce((n,x)=>n+Number(x.outstanding_quantity||0),0);
    const partial=tx.filter(x=>Number(x.returned_quantity||0)>0&&Number(x.outstanding_quantity||0)>0).length;
    const discrepancy=tx.filter(x=>(x.return_events||[]).some(e=>e.discrepancy_qty)).length;
-   const overdue=tx.filter(x=>x.status==='OVERDUE').length;
    $('km').innerHTML=`
      <div><span>Borrowed Qty</span><b>${totalBorrowed}</b></div>
      <div><span>Returned Qty</span><b>${totalReturned}</b></div>
      <div><span>Outstanding Qty</span><b>${totalOutstanding}</b></div>
-     <div><span>Attention</span><b>${partial+discrepancy+overdue}</b></div>`;
+     <div><span>Attention</span><b>${partial+discrepancy}</b></div>`;
    const tab=document.querySelector('[data-ktab].active')?.dataset.ktab;
    if(tab==='Return Events'){
      const events=tx.flatMap(x=>(x.return_events||[]).map(e=>({...e,transaction_id:x.transaction_id,key_number:x.key_number,borrower_name:x.person_name,department:x.department,original_borrowed_quantity:x.borrowed_quantity})));
@@ -40,9 +39,8 @@ async function keys(){
    }else{
      let z=tx;
      if(tab==='Outstanding')z=z.filter(x=>Number(x.outstanding_quantity)>0);
-     $('kh').innerHTML='<tr><th>Transaction</th><th>Key</th><th>Borrower</th><th>Issued By</th><th>Borrowed</th><th>Returned</th><th>Outstanding</th><th>Last Return</th><th>Expected Return</th><th>Status</th></tr>';
+     $('kh').innerHTML='<tr><th>Transaction</th><th>Key</th><th>Borrower</th><th>Issued By</th><th>Borrowed</th><th>Returned</th><th>Outstanding</th><th>Last Return</th><th>Status</th></tr>';
      $('krows').innerHTML=z.length?z.map(x=>{
-       const attention=x.status==='OVERDUE'||Number(x.outstanding_quantity)>0||(x.return_events||[]).some(e=>e.discrepancy_qty);
        return `<tr>
          <td><b>${esc(x.submission_id)}</b><small>${esc(x.transaction_id)}</small></td>
          <td><b>${esc(x.key_number)}</b><small>${esc(x.key_description||'—')}</small></td>
@@ -52,10 +50,9 @@ async function keys(){
          <td>${esc(x.returned_quantity)}</td>
          <td><b>${esc(x.outstanding_quantity)}</b></td>
          <td>${fmt(x.last_returned_at)}</td>
-         <td>${fmt(x.expected_return_at)}</td>
-         <td>${badge(x.status==='OVERDUE'||(x.return_events||[]).some(e=>e.discrepancy_qty)?'warn':x.status==='PARTIALLY RETURNED'?'key':'ok',x.status+( (x.return_events||[]).some(e=>e.discrepancy_qty)?' · DISCREPANCY':'') )}</td>
+         <td>${badge((x.return_events||[]).some(e=>e.discrepancy_qty)?'warn':x.status==='PARTIALLY RETURNED'?'key':'ok',x.status+( (x.return_events||[]).some(e=>e.discrepancy_qty)?' · DISCREPANCY':'') )}</td>
        </tr>`
-     }).join(''):empty(10,'No key transactions found.');
+     }).join(''):empty(9,'No key transactions found.');
    }
    $('knote').textContent=(tab==='Return Events' ? 'Return events: ' : 'Transactions: ')+((tab==='Return Events')?tx.flatMap(x=>x.return_events||[]).length:tx.length)+' record(s) found.';
  };
