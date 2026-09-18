@@ -70,10 +70,30 @@ Deno.serve(async req=>{
   try{
     const auth=await admin(req);if(auth.error)return auth.error;const url=new URL(req.url),action=url.searchParams.get('action')||'summary';
     if(action==='summary'){
-      const d=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Jakarta',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());const since=new Date(`${d}T00:00:00+07:00`);
+      const d=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Jakarta',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+      const since=new Date(d+'T00:00:00+07:00');
       const [v,e,x,b,r,p,inside,keys,sub,distAll,distToday,totalPackages]=await Promise.all([
-        sb.from('visitors').select('id',{count:'exact',head:true}),sb.from('visitor_entries').select('id',{count:'exact',head:true}).gte('entry_at',since.toISOString()),sb.from('visitor_exits').select('id',{count:'exact',head:true}).gte('exit_at',since.toISOString()),sb.from('key_borrowings').select('id',{count:'exact',head:true}).gte('borrowed_at',since.toISOString()),sb.from('key_returns').select('id',{count:'exact',head:true}).gte('returned_at',since.toISOString()),sb.from('package_registrations').select('id',{count:'exact',head:true}).gte('created_at',since.toISOString()),sb.from('currently_inside').select('entry_id',{count:'exact',head:true}),sb.from('outstanding_keys').select('borrowing_id',{count:'exact',head:true}),sb.from('submissions').select('id',{count:'exact',head:true}),sb.from('package_distributions').select('id',{count:'exact',head:true}),sb.from('package_distributions').select('id',{count:'exact',head:true}).gte('distributed_at',since.toISOString()),sb.from('package_registrations').select('id',{count:'exact',head:true})
-      ]);const errs=[v,e,x,b,r,p,inside,keys,sub,distAll,distToday,totalPackages].filter(x=>x.error);if(errs.length)throw errs[0].error;const ready=Math.max((totalPackages.count||0)-(distAll.count||0),0);return json(req,{profile:auth.profile,summary:{total_visitors:v.count||0,today_entry:e.count||0,today_exit:x.count||0,currently_inside:inside.count||0,today_key_borrowing:b.count||0,today_key_return:r.count||0,today_packages:p.count||0,outstanding_keys:keys.count||0,total_submissions:sub.count||0,total_packages:totalPackages.count||0,distributed_packages:distAll.count||0,distributed_packages_today:distToday.count||0,ready_packages:ready}});
+        sb.from('visitors').select('id',{count:'exact',head:true}),
+        sb.from('visitor_entries').select('id',{count:'exact',head:true}).gte('entry_at',since.toISOString()),
+        sb.from('visitor_exits').select('id',{count:'exact',head:true}).gte('exit_at',since.toISOString()),
+        sb.from('key_borrowings').select('id',{count:'exact',head:true}).gte('borrowed_at',since.toISOString()),
+        sb.from('key_returns').select('id',{count:'exact',head:true}).gte('returned_at',since.toISOString()),
+        sb.from('package_registrations').select('id',{count:'exact',head:true}).gte('created_at',since.toISOString()),
+        sb.from('currently_inside').select('entry_id',{count:'exact',head:true}),
+        sb.from('outstanding_keys').select('borrowing_id,outstanding_quantity,status,discrepancy'),
+        sb.from('submissions').select('id',{count:'exact',head:true}),
+        sb.from('package_distributions').select('id',{count:'exact',head:true}),
+        sb.from('package_distributions').select('id',{count:'exact',head:true}).gte('distributed_at',since.toISOString()),
+        sb.from('package_registrations').select('id',{count:'exact',head:true})
+      ]);
+      const errs=[v,e,x,b,r,p,inside,keys,sub,distAll,distToday,totalPackages].filter(x=>x.error);if(errs.length)throw errs[0].error;
+      const outstandingRows=keys.data||[];
+      const outstandingQty=outstandingRows.reduce((n,row)=>n+Number(row.outstanding_quantity||0),0);
+      const overdueKeys=outstandingRows.filter(row=>row.status==='OVERDUE').length;
+      const discrepancyKeys=outstandingRows.filter(row=>row.discrepancy).length;
+      const partialKeys=outstandingRows.filter(row=>row.status==='PARTIALLY RETURNED').length;
+      const ready=Math.max((totalPackages.count||0)-(distAll.count||0),0);
+      return json(req,{profile:auth.profile,summary:{total_visitors:v.count||0,today_entry:e.count||0,today_exit:x.count||0,currently_inside:inside.count||0,today_key_borrowing:b.count||0,today_key_return:r.count||0,today_packages:p.count||0,outstanding_keys:outstandingQty,outstanding_key_transactions:outstandingRows.length,overdue_keys:overdueKeys,discrepancy_keys:discrepancyKeys,partial_key_transactions:partialKeys,total_submissions:sub.count||0,total_packages:totalPackages.count||0,distributed_packages:distAll.count||0,distributed_packages_today:distToday.count||0,ready_packages:ready}});
     }
     if(action==='activity'){const n=limitOf(url.searchParams.get('limit'),100,500);const {data,error}=await sb.from('recent_activity').select('*').order('submitted_at',{ascending:false}).limit(n);if(error)throw error;return json(req,{data:data||[]})}
     if(action==='inside'){const n=limitOf(url.searchParams.get('limit'),500,1000);const {data,error}=await sb.from('currently_inside').select('*').order('entry_at',{ascending:false}).limit(n);if(error)throw error;return json(req,{data:data||[]})}
