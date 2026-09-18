@@ -105,7 +105,7 @@ Deno.serve(async req=>{
       return json(req,{data:rows});
     }
     if(action==='key_history'){
-      const n=limitOf(url.searchParams.get('limit'),5000,5000),q=(url.searchParams.get('q')||'').trim().toLowerCase(),from=url.searchParams.get('from'),to=isoEnd(url.searchParams.get('to')),status=(url.searchParams.get('status')||'').toUpperCase();
+      const n=limitOf(url.searchParams.get('limit'),5000,5000),q=(url.searchParams.get('q')||'').trim().toLowerCase(),from=url.searchParams.get('from'),to=isoEnd(url.searchParams.get('to')),statusParam=(url.searchParams.get('status')||'').trim().toUpperCase(),status=statusParam==='ALL STATUS'?'':statusParam;
       const [br,rr]=await Promise.all([
         sb.from('key_control_transactions').select('*').order('borrowed_at',{ascending:false}).limit(n),
         sb.from('key_return_events').select('*').order('returned_at',{ascending:false}).limit(n)
