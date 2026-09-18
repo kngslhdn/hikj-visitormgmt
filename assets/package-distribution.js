@@ -115,7 +115,7 @@
     const main = document.querySelector('#pdMain');
     main.classList.remove('hidden');
     main.innerHTML = `<div class="pd-user">Authorized: <b>${esc(authSession.user?.email)}</b><button id="pdSignOut" class="pd-link">Sign Out</button></div>
-      <div class="pd-search"><input id="pdSearch" placeholder="Search package number, recipient, courier, company..." autocomplete="off"><button class="submit" id="pdSearchBtn">SEARCH</button></div>
+      <div class="pd-search"><input id="pdSearch" placeholder="Search package ID, recipient, courier, company..." autocomplete="off"><button class="submit" id="pdSearchBtn">SEARCH</button></div>
       <div id="pdResults" class="pd-results"><div class="pd-empty">Enter a keyword or press SEARCH to find registered packages.</div></div><div id="pdSelected"></div>`;
     document.querySelector('#pdSignOut').onclick = async () => { await client.auth.signOut(); authSession = null; renderAuth(); };
     const search = document.querySelector('#pdSearch');
@@ -147,7 +147,7 @@
     selected = pkg;
     const target = document.querySelector('#pdSelected');
     target.innerHTML = `<div class="pd-selected"><div class="pd-selected-head"><b>Selected Package</b><span>READY FOR DISTRIBUTION</span></div>
-      <div class="pd-detail"><div><small>Package Number</small><b>${esc(pkg.submission_id || pkg.package_number)}</b></div><div><small>Recipient</small><b>${esc(pkg.recipient_name || '—')}</b></div><div><small>Company</small><b>${esc(pkg.company_name || '—')}</b></div><div><small>Item</small><b>${esc(pkg.item_type || '—')} · Qty ${esc(pkg.item_count ?? '—')}</b></div><div><small>Courier</small><b>${esc(pkg.courier_name || '—')}</b></div><div><small>Registered</small><b>${fmt(pkg.created_at)}</b></div></div>
+      <div class="pd-detail"><div><small>Package ID</small><b>${esc(pkg.submission_id || pkg.package_number)}</b></div><div><small>Recipient</small><b>${esc(pkg.recipient_name || '—')}</b></div><div><small>Company</small><b>${esc(pkg.company_name || '—')}</b></div><div><small>Item</small><b>${esc(pkg.item_type || '—')} · Qty ${esc(pkg.item_count ?? '—')}</b></div><div><small>Courier</small><b>${esc(pkg.courier_name || '—')}</b></div><div><small>Registered</small><b>${fmt(pkg.created_at)}</b></div></div>
       <button class="submit" id="pdDistribute">DISTRIBUTE PACKAGE</button></div>`;
     target.querySelector('#pdDistribute').onclick = openDistributionForm;
     target.scrollIntoView({ behavior:'smooth', block:'nearest' });
@@ -156,7 +156,7 @@
   function openDistributionForm() {
     const target = document.querySelector('#pdSelected');
     target.innerHTML = `<div class="pd-selected"><div class="pd-selected-head"><b>Package Hand-Over</b><span>DISTRIBUTION</span></div>
-      <div class="pd-detail"><div><small>Package Number</small><b>${esc(selected.submission_id || selected.package_number)}</b></div><div><small>Registered Recipient</small><b>${esc(selected.recipient_name || '—')}</b></div></div>
+      <div class="pd-detail"><div><small>Package ID</small><b>${esc(selected.submission_id || selected.package_number)}</b></div><div><small>Registered Recipient</small><b>${esc(selected.recipient_name || '—')}</b></div></div>
       <label>Package Owner / Recipient Name</label><input id="pdRecipient" value="${esc(selected.recipient_name || '')}" placeholder="Recipient / Representative Name" autocomplete="off">
       <small class="pd-hint">Defaulted to the registered recipient. Edit if the package is received by a representative or delegate.</small>
       <label>Security Hand Over *</label><input id="pdSecurity" placeholder="Enter Security Hand Over" required>
@@ -176,7 +176,7 @@
     try {
       const data = await callApi('', { method:'POST', body: JSON.stringify({ package_registration_id: selected.id, recipient_name: recipient, security_hand_over: security }) });
       notice.textContent = '';
-      document.querySelector('#pdSelected').innerHTML = `<div class="pd-success"><h3>Package successfully distributed.</h3><p><b>Distribution ID:</b> ${esc(data.distribution.distribution_number||'—')}</p><p><b>Package Number:</b> ${esc(data.distribution.package_number)}</p><p><b>Recipient:</b> ${esc(data.distribution.recipient_name)}</p><p><b>Security Hand Over:</b> ${esc(data.distribution.security_hand_over)}</p><p><b>Distribution Date &amp; Time:</b> ${fmt(data.distribution.distributed_at)}</p><button class="submit" id="pdBack">SEARCH ANOTHER PACKAGE</button></div>`;
+      document.querySelector('#pdSelected').innerHTML = `<div class="pd-success"><h3>Package successfully distributed.</h3><p><b>Distribution ID:</b> ${esc(data.distribution.distribution_number||'—')}</p><p><b>Package ID:</b> ${esc(data.distribution.package_number)}</p><p><b>Recipient:</b> ${esc(data.distribution.recipient_name)}</p><p><b>Security Hand Over:</b> ${esc(data.distribution.security_hand_over)}</p><p><b>Distribution Date &amp; Time:</b> ${fmt(data.distribution.distributed_at)}</p><button class="submit" id="pdBack">SEARCH ANOTHER PACKAGE</button></div>`;
       document.querySelector('#pdBack').onclick = () => { selected = null; renderAuth(); };
     } catch (e) {
       notice.textContent = e.message || 'Unable to complete package distribution. Please try again.';
