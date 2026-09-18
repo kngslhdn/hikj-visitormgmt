@@ -26,7 +26,7 @@ select borrowing_id,submission_id,borrower_name,department,key_number,key_descri
 borrowed_quantity,returned_quantity,outstanding_quantity,issued_by_security security_officer_name,
 issued_by_security,borrowed_at,expected_return_at,last_returned_at,status,discrepancy
 from public.key_control_transactions where outstanding_quantity>0;
-create or replace function public.validate_key_return_quantity() returns trigger language plpgsql as $$
+create or replace function public.validate_key_return_quantity() returns trigger language plpgsql set search_path=public as $
 declare borrowed_qty integer; returned_qty integer;
 begin
  if new.borrowing_id is null then raise exception 'Borrowing transaction is required'; end if;
