@@ -25,11 +25,6 @@ async function keys(){
    const totalOutstanding=tx.reduce((n,x)=>n+Number(x.outstanding_quantity||0),0);
    const partial=tx.filter(x=>Number(x.returned_quantity||0)>0&&Number(x.outstanding_quantity||0)>0).length;
    const discrepancy=tx.filter(x=>(x.return_events||[]).some(e=>e.discrepancy_qty)).length;
-   $('km').innerHTML=`
-     <div><span>Borrowed Qty</span><b>${totalBorrowed}</b></div>
-     <div><span>Returned Qty</span><b>${totalReturned}</b></div>
-     <div><span>Outstanding Qty</span><b>${totalOutstanding}</b></div>
-     <div><span>Attention</span><b>${partial+discrepancy}</b></div>`;
    const tab=document.querySelector('[data-ktab].active')?.dataset.ktab;
    if(tab==='Key Returned'){
      const events=tx.flatMap(x=>(x.return_events||[]).map(e=>({...e,transaction_id:x.transaction_id,key_number:x.key_number,borrower_name:x.person_name,department:x.department,original_borrowed_quantity:x.borrowed_quantity})));
