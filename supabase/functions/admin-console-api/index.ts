@@ -97,7 +97,13 @@ Deno.serve(async req=>{
     }
     if(action==='activity'){const n=limitOf(url.searchParams.get('limit'),100,500);const {data,error}=await sb.from('recent_activity').select('*').order('submitted_at',{ascending:false}).limit(n);if(error)throw error;return json(req,{data:data||[]})}
     if(action==='inside'){const n=limitOf(url.searchParams.get('limit'),500,1000);const {data,error}=await sb.from('currently_inside').select('*').order('entry_at',{ascending:false}).limit(n);if(error)throw error;return json(req,{data:data||[]})}
-    if(action==='keys'){const n=limitOf(url.searchParams.get('limit'),500,1000);const {data,error}=await sb.from('outstanding_keys').select('*').order('borrowed_at',{ascending:false}).limit(n);if(error)throw error;return json(req,{data:data||[]})}
+    if(action==='keys'){
+      const n=limitOf(url.searchParams.get('limit'),500,1000);
+      const {data,error}=await sb.from('outstanding_keys').select('*').order('borrowed_at',{ascending:false}).limit(n);
+      if(error)throw error;
+      const rows=(data||[]).map((x:any)=>({...x,quantity:Number(x.outstanding_quantity||0)}));
+      return json(req,{data:rows});
+    }
     if(action==='key_history'){
       const n=limitOf(url.searchParams.get('limit'),5000,5000),q=(url.searchParams.get('q')||'').trim().toLowerCase(),from=url.searchParams.get('from'),to=isoEnd(url.searchParams.get('to')),status=(url.searchParams.get('status')||'').toUpperCase();
       const {data,error}=await sb.from('key_control_transactions').select('*').order('borrowed_at',{ascending:false}).limit(n);
