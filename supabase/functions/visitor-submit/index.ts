@@ -79,12 +79,24 @@ Deno.serve(async req=>{
    const pass=clean(val(body,'pass_vest_number','pass'));const entry=matchedExitEntry;const exitName=clean(entry?.visitor_name||entry?.visitor_name_snapshot||'');
    const {data:ex,error}=await supabase.from('visitor_exits').insert({submission_id:submission.id,visitor_id:visitorId,entry_id:entry.id,visitor_name:exitName,pass_vest_number:pass,security_officer_name:clean(val(body,'security_officer_name','security')),exit_at:new Date().toISOString()}).select('id').single();if(error)throw error;if(entry.id)await supabase.from('visitor_entries').update({exit_id:ex.id}).eq('id',entry.id);
   }else if(type==='key_borrowing'){
-   const key=clean(body.key_number||body.keyNumber);const quantity=Number(body.quantity||body.qty||1);if(!key)return json({error:'Please enter Key Number.'},400);if(!Number.isInteger(quantity)||quantity<1)return json({error:'Quantity of Keys must be a whole number greater than 0.'},400);const {data:outstanding,error:oe}=await supabase.from('key_borrowings').select('id,borrower_name,quantity').eq('key_number',key).is('return_id',null).order('borrowed_at',{ascending:false}).limit(1).maybeSingle();if(oe)throw oe;if(outstanding)return json({ok:false,error:`Key ${key} is currently borrowed by ${outstanding.borrower_name}. Please return the key before borrowing it again.`},409);const {error}=await supabase.from('key_borrowings').insert({submission_id:submission.id,borrower_name:clean(val(body,'borrower_name','borrowerName')),department:clean(body.department),key_number:key,key_description:clean(body.key_description||body.description),quantity,security_officer_name:clean(val(body,'security_officer_name','security')),borrowed_at:timestamp(body.borrowed_at||body.datetime)});if(error)throw error;
+   const key=clean(body.key_number||body.keyNumber),quantity=Number(body.quantity||body.qty||1);
+   if(!key)return json({error:'Please enter Key Number.'},400);
+   if(!Number.isInteger(quantity)||quantity<1)return json({error:'Quantity of Keys must be a whole number greater than 0.'},400);
+   const {data,error}=await supabase.from('key_control_transactions').select('key_number,borrower_name,outstanding_quantity').eq('key_number',key).gt('outstanding_quantity',0).limit(1).maybeSingle();
+   if(error)throw error;
+   if(data)return json({ok:false,error:`Key ${key} is currently outstanding to ${data.borrower_name} with ${data.outstanding_quantity} key(s) outstanding. Please return the outstanding key(s) before a new borrowing.`},409);
+   const borrowerName=clean(val(body,'borrower_name','borrowerName'));
+   const department=clean(body.department);
+   const description=clean(body.key_description||body.description);
+   const officer=clean(val(body,'security_officer_name','security'));
+   if(!borrowerName||!officer)return json({error:'Borrower Name and Issued By Security Officer are required.'},400);
+   const {error:ie}=await supabase.from('key_borrowings').insert({submission_id:submission.id,borrower_name:borrowerName,department,key_number:key,key_description:description,quantity,security_officer_name:officer,borrowed_at:timestamp(body.borrowed_at||body.datetime),expected_return_at:timestamp(body.expected_return_at||body.expectedReturn)});
+   if(ie)throw ie;
   }else if(type==='key_return'){
    const quantity=Number(body.quantity||body.qty||1),borrowing=returnBorrowing,returnedBy=clean(val(body,'return_name','returnName','returned_by','returnedBy')),officer=clean(val(body,'security_officer_name','security')),department=clean(body.department)||borrowing.department;
    if(!returnedBy||!officer)return json({error:'Returned By and Received By Security are required.'},400);
    const originalBorrowed=Number(borrowing.borrowed_quantity),previouslyReturned=Number(borrowing.returned_quantity),newTotal=previouslyReturned+quantity;
-   const discrepancy=newTotal!==originalBorrowed;
+   const discrepancy=false;
    const {error}=await supabase.from('key_returns').insert({submission_id:submission.id,borrowing_id:borrowing.borrowing_id,return_name:returnedBy,returned_by:returnedBy,department,key_number:borrowing.key_number,quantity,borrowed_quantity:originalBorrowed,discrepancy_qty:discrepancy,security_officer_name:officer,returned_at:timestamp(body.returned_at||body.datetime)});
    if(error)throw error;
    keyReturnResult={key_number:borrowing.key_number,original_borrowed_quantity:originalBorrowed,previously_returned_quantity:previouslyReturned,returned_now:quantity,total_returned:newTotal,outstanding_quantity:originalBorrowed-newTotal,discrepancy,new_status:newTotal===originalBorrowed?'CLOSED':'PARTIALLY RETURNED'};
