@@ -106,45 +106,47 @@ Deno.serve(async req=>{
     }
     if(action==='key_history'){
       const n=limitOf(url.searchParams.get('limit'),5000,5000),q=(url.searchParams.get('q')||'').trim().toLowerCase(),from=url.searchParams.get('from'),to=isoEnd(url.searchParams.get('to')),status=(url.searchParams.get('status')||'').toUpperCase();
-      const {data,error}=await sb.from('key_control_transactions').select('*').order('borrowed_at',{ascending:false}).limit(n);
-      if(error)throw error;
-      const {data:returns,error:re}=await sb.from('key_return_events').select('*').order('returned_at',{ascending:false}).limit(n);
-      if(re)throw re;
-      let tx=(data||[]).filter((x:any)=>!from||x.borrowed_at>=from).filter((x:any)=>!to||x.borrowed_at<to);
-      if(q)tx=tx.filter((x:any)=>[x.submission_id,x.borrower_name,x.department,x.key_number,x.key_description,x.issued_by_security].some(v=>String(v||'').toLowerCase().includes(q)));
+      const [br,rr]=await Promise.all([
+        sb.from('key_control_transactions').select('*').order('borrowed_at',{ascending:false}).limit(n),
+        sb.from('key_return_events').select('*').order('returned_at',{ascending:false}).limit(n)
+      ]);
+      if(br.error)throw br.error;if(rr.error)throw rr.error;
+      const returns=rr.data||[];
+      let tx=(br.data||[]).filter((x:any)=>!from||x.borrowed_at>=from).filter((x:any)=>!to||x.borrowed_at<to);
+      const byId=new Map<string,any[]>();
+      for(const r of returns){if(!byId.has(r.borrowing_id))byId.set(r.borrowing_id,[]);byId.get(r.borrowing_id)!.push(r);}
+      if(q)tx=tx.filter((x:any)=>{
+        const events=byId.get(x.borrowing_id)||[];
+        return [x.submission_id,x.borrower_name,x.department,x.key_number,x.key_description,x.issued_by_security,
+          ...events.flatMap((e:any)=>[e.returned_by,e.received_by_security])].some(v=>String(v||'').toLowerCase().includes(q));
+      });
       if(status){
         tx=tx.filter((x:any)=>
-          status==='BORROWED'?true:
           status==='OUTSTANDING'?Number(x.outstanding_quantity)>0:
           status==='DISCREPANCY'?!!x.discrepancy:
           String(x.status||'').toUpperCase()===status
         );
       }
-      const byId=new Map((returns||[]).map((r:any)=>[r.borrowing_id,[] as any[]]));
-      for(const r of returns||[]){if(byId.has(r.borrowing_id))byId.get(r.borrowing_id).push(r);}
-      const rows:any[]=[];
-      for(const x of tx){
-        rows.push({
-          record_type:'key_transaction',
-          transaction_id:x.borrowing_id,
-          submission_id:x.submission_id,
-          person_name:x.borrower_name,
-          department:x.department,
-          key_number:x.key_number,
-          key_description:x.key_description,
-          borrowed_quantity:x.borrowed_quantity,
-          returned_quantity:x.returned_quantity,
-          outstanding_quantity:x.outstanding_quantity,
-          event_at:x.borrowed_at,
-          issued_by_security:x.issued_by_security,
-          security_officer_name:x.issued_by_security,
-          last_returned_at:x.last_returned_at,
-          expected_return_at:x.expected_return_at,
-          status:x.status,
-          discrepancy:!!x.discrepancy,
-          return_events:byId.get(x.borrowing_id)||[]
-        });
-      }
+      const rows=tx.map((x:any)=>({
+        record_type:'key_transaction',
+        transaction_id:x.borrowing_id,
+        submission_id:x.submission_id,
+        person_name:x.borrower_name,
+        department:x.department,
+        key_number:x.key_number,
+        key_description:x.key_description,
+        borrowed_quantity:x.borrowed_quantity,
+        returned_quantity:x.returned_quantity,
+        outstanding_quantity:x.outstanding_quantity,
+        event_at:x.borrowed_at,
+        issued_by_security:x.issued_by_security,
+        security_officer_name:x.issued_by_security,
+        last_returned_at:x.last_returned_at,
+        expected_return_at:x.expected_return_at,
+        status:x.status,
+        discrepancy:!!x.discrepancy,
+        return_events:(byId.get(x.borrowing_id)||[]).sort((a:any,b:any)=>new Date(b.returned_at).getTime()-new Date(a.returned_at).getTime())
+      }));
       return json(req,{data:rows});
     }
 
