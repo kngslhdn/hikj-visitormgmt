@@ -56,6 +56,14 @@ Deno.serve(async (req) => {
 
       const { data, error } = await query;
       if (error) return json({ error: error.message }, 400);
+      const rows = data || [];
+      const submissionIds = rows.map((p) => p.submission_id).filter(Boolean);
+      const publicMap = new Map<string, string>();
+      if (submissionIds.length) {
+        const { data: subs, error: se } = await sb.from("submissions").select("id,submission_id").in("id", submissionIds);
+        if (se) return json({ error: se.message }, 400);
+        for (const s of subs || []) publicMap.set(s.id, s.submission_id);
+      }
 
       const term = q.toLowerCase();
       const filtered = (data || []).filter((p) => {
@@ -66,11 +74,11 @@ Deno.serve(async (req) => {
           p.company_name,
           p.item_type,
           p.recipient_type,
-          p.submission_id,
+          publicMap.get(p.submission_id) || p.submission_id,
         ].join(" ").toLowerCase();
         return searchText.includes(term);
       });
-      return json({ packages: filtered.map((p) => ({ ...p, package_number: p.submission_id, status: "READY FOR DISTRIBUTION" })) });
+      return json({ packages: filtered.map((p) => ({ ...p, submission_id: publicMap.get(p.submission_id) || p.submission_id, package_number: publicMap.get(p.submission_id) || p.submission_id, status: "READY FOR DISTRIBUTION" })) });
     }
 
     if (req.method === "POST") {
@@ -87,9 +95,11 @@ Deno.serve(async (req) => {
       const { data: existing } = await sb.from("package_distributions").select("id").eq("package_registration_id", packageRegistrationId).maybeSingle();
       if (existing) return json({ error: "Package has already been distributed." }, 409);
 
+      const { data: pkgSubmission, error: pkgSubmissionError } = await sb.from("submissions").select("submission_id").eq("id", pkg.submission_id).maybeSingle();
+      if (pkgSubmissionError || !pkgSubmission) return json({ error: "Package submission record not found." }, 500);
       const { data: distribution, error: insertError } = await sb.from("package_distributions").insert({
         package_registration_id: pkg.id,
-        package_number: pkg.submission_id,
+        package_number: pkgSubmission.submission_id,
         registered_recipient_name: pkg.recipient_name,
         recipient_name: recipientName,
         security_hand_over: securityHandOver,
