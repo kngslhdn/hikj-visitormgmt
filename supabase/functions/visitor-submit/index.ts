@@ -71,7 +71,7 @@ Deno.serve(async req=>{
    if(data)return json({ok:false,error:`Key ${key} is currently outstanding to ${data.borrower_name} with ${data.outstanding_quantity} key(s) outstanding. Please return the outstanding key(s) before a new borrowing.`},409);
   }
 
-  const submissionId=`HIKJ-${new Date().toISOString().replace(/[-:TZ.]/g,'').slice(0,14)}-${crypto.randomUUID().slice(0,6).toUpperCase()}`;const {data:submission,error:se}=await supabase.from('submissions').insert({submission_id:submissionId,submission_type:type,visitor_id:visitorId,status:'submitted',idempotency_key:idem||null,metadata:{source_form:rawType}}).select('id').single();if(se)throw se;
+  const {data:submission,error:se}=await supabase.from('submissions').insert({submission_id:null,submission_type:type,visitor_id:visitorId,status:'submitted',idempotency_key:idem||null,metadata:{source_form:rawType}}).select('id,submission_id').single();if(se)throw se;
   let keyReturnResult:any=null;
   if(type==='visitor_entry'){
    const category=clean(val(body,'category','kategori'));const {error}=await supabase.from('visitor_entries').insert({submission_id:submission.id,visitor_id:visitorId,visitor_name:name,visitor_phone:mobile||null,visitor_company_name:company||null,visitor_category:category,visitor_name_snapshot:name,phone_snapshot:mobile||null,company_name_snapshot:company||null,category_snapshot:category,work_location:clean(val(body,'work_location','lokasi')),purpose:clean(val(body,'purpose','tujuan')),security_officer_name:clean(val(body,'security_officer_name','security')),pass_vest_number:clean(val(body,'pass_vest_number','pass')),entry_at:timestamp(body.entry_at||body.datetime)});if(error)throw error;
@@ -91,7 +91,6 @@ Deno.serve(async req=>{
    const officer=clean(val(body,'security_officer_name','security'));
    if(!borrowerName||!officer)return json({error:'Borrower Name and Issued By Security Officer are required.'},400);
    const borrowingPayload={submission_id:submission.id,borrower_name:borrowerName,department,key_number:key,key_description:description,quantity,security_officer_name:officer,borrowed_at:timestamp(body.borrowed_at||body.datetime)} as Record<string,unknown>;
-   if(clean(body.expected_return_at||body.expectedReturn)) borrowingPayload.expected_return_at=timestamp(body.expected_return_at||body.expectedReturn);
    const {error:ie}=await supabase.from('key_borrowings').insert(borrowingPayload);
    if(ie)throw ie;
   }else if(type==='key_return'){
@@ -106,6 +105,6 @@ Deno.serve(async req=>{
   }else{
    const path=await uploadPackagePhoto(clean(body.foto||body.photo_data_url));const {error}=await supabase.from('package_registrations').insert({submission_id:submission.id,courier_name:clean(val(body,'courier_name','namaPengantar')),phone:mobile||null,phone_normalized:phone(mobile)||null,company_name:company,item_type:clean(val(body,'item_type','jenisBarang')).toUpperCase(),item_count:Number(body.item_count||body.number_of_items||body.jumlah||1),recipient_type:clean(val(body,'recipient_type','tujuan')).toUpperCase(),recipient_name:clean(val(body,'recipient_name','namaTujuan')),security_officer_name:clean(val(body,'security_officer_name','security')),photo_storage_path:path});if(error)throw error;
   }
-  await supabase.from('submissions').update({status:'completed'}).eq('id',submission.id);return json({ok:true,submission_id:submissionId,...(keyReturnResult?{key_return:keyReturnResult}:{})});
+  await supabase.from('submissions').update({status:'completed'}).eq('id',submission.id);return json({ok:true,submission_id:submission.submission_id,...(keyReturnResult?{key_return:keyReturnResult}:{})});
  }catch(e){console.error(e);return json({error:e instanceof Error?e.message:'Submission failed'},500)}
 });
