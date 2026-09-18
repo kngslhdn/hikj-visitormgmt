@@ -15,7 +15,7 @@ function bindFilters(load,prefix,tabAttr){document.querySelectorAll(`[data-${tab
 async function visitors(){const p=$('aPage');p.innerHTML=shell('Visitor Monitoring','Complete Visitor Entry and Visitor Exit history.',`<button class="a-btn" id="vr">Refresh</button>`)+tabs('vtab',['All Record','Visitor Entry','Visitor Exit'])+filters('vf','Name, phone, company, pass or location',['All Status','Inside','Exited'])+`<section class="a-panel"><div class="a-table"><table><thead><tr><th>Visitor</th><th>Company</th><th>Category</th><th>Location</th><th>Pass</th><th>Entry</th><th>Exit</th><th>Status</th></tr></thead><tbody id="vrows"></tbody></table></div><div class="a-note" id="vnote"></div></section>`;const load=async()=>{const r=await api('visitors',{limit:2000,q:$('vfQ').value,from:$('vfFrom').value,to:$('vfTo').value?$('vfTo').value+'T23:59:59':''});let z=r.data||[];const tab=document.querySelector('[data-vtab].active')?.dataset.vtab;if(tab==='Visitor Entry')z=z.filter(x=>!x.exit);if(tab==='Visitor Exit')z=z.filter(x=>x.exit);if($('vfStatus').value==='Inside')z=z.filter(x=>!x.exit);if($('vfStatus').value==='Exited')z=z.filter(x=>x.exit);$('vrows').innerHTML=z.length?z.map(x=>{const v=x.visitor||{};return `<tr><td><b>${esc(v.full_name||'—')}</b><small>${esc(v.phone||'—')}</small></td><td>${esc(v.company_name||'—')}</td><td>${esc(v.category||'—')}</td><td>${esc(x.work_location||'—')}</td><td>${esc(x.pass_vest_number||'—')}</td><td>${fmt(x.entry_at)}</td><td>${fmt(x.exit?.exit_at)}</td><td>${badge(x.exit?'exit':'entry',x.exit?'EXITED':'INSIDE')}</td></tr>`}).join(''):empty(8);$('vnote').textContent=z.length+' record'+(z.length===1?'':'s')+' found.'};bindFilters(load,'vf','vtab');$('vr').onclick=load;await load()}
 async function keys(){
  const p=$('aPage');
- p.innerHTML=shell('Key Monitoring','Live key custody control: one transaction per borrowing, with multiple return events.',`<button class="a-btn" id="kr">Refresh</button>`)+tabs('ktab',['Transactions','Return Events','Outstanding'])+filters('kf','Transaction, borrower, returner, department or key',['All Status','ACTIVE','PARTIALLY RETURNED','CLOSED','DISCREPANCY'])+`
+ p.innerHTML=shell('Key Monitoring','Live key custody control: one transaction per borrowing, with multiple return events.',`<button class="a-btn" id="kr">Refresh</button>`)+tabs('ktab',['All Record','Key Returned','Outstanding'])+filters('kf','Transaction, borrower, returner, department or key',['All Status','ACTIVE','PARTIALLY RETURNED','CLOSED','DISCREPANCY'])+`
  <div class="a-metrics" id="km"></div>
  <section class="a-panel"><div class="a-table"><table><thead id="kh"></thead><tbody id="krows"></tbody></table></div><div class="a-note" id="knote"></div></section>`;
  const load=async()=>{
@@ -32,7 +32,7 @@ async function keys(){
      <div><span>Outstanding Qty</span><b>${totalOutstanding}</b></div>
      <div><span>Attention</span><b>${partial+discrepancy}</b></div>`;
    const tab=document.querySelector('[data-ktab].active')?.dataset.ktab;
-   if(tab==='Return Events'){
+   if(tab==='Key Returned'){
      const events=tx.flatMap(x=>(x.return_events||[]).map(e=>({...e,transaction_id:x.transaction_id,key_number:x.key_number,borrower_name:x.person_name,department:x.department,original_borrowed_quantity:x.borrowed_quantity})));
      $('kh').innerHTML='<tr><th>Return Time</th><th>Transaction</th><th>Key</th><th>Borrower</th><th>Returned By</th><th>Qty</th><th>Received By Security</th><th>Status</th></tr>';
      $('krows').innerHTML=events.length?events.map(e=>`<tr><td>${fmt(e.returned_at)}</td><td><b>${esc(e.transaction_id)}</b></td><td>${esc(e.key_number)}</td><td>${esc(e.borrower_name)}</td><td>${esc(e.returned_by||'—')}</td><td>${esc(e.returned_quantity)}</td><td>${esc(e.received_by_security||'—')}</td><td>${badge(e.discrepancy_qty?'warn':'ok',e.discrepancy_qty?'DISCREPANCY':'RETURNED')}</td></tr>`).join(''):empty(8,'No return events found.');
@@ -54,7 +54,7 @@ async function keys(){
        </tr>`
      }).join(''):empty(9,'No key transactions found.');
    }
-   $('knote').textContent=(tab==='Return Events' ? 'Return events: ' : 'Transactions: ')+((tab==='Return Events')?tx.flatMap(x=>x.return_events||[]).length:tx.length)+' record(s) found.';
+   $('knote').textContent=(tab==='Key Returned' ? 'Return events: ' : 'Transactions: ')+((tab==='Key Returned')?tx.flatMap(x=>x.return_events||[]).length:tx.length)+' record(s) found.';
  };
  bindFilters(load,'kf','ktab');$('kr').onclick=load;await load();
 }
