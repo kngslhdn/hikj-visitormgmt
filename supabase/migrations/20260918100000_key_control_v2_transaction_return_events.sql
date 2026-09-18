@@ -13,8 +13,8 @@ b.quantity borrowed_quantity,coalesce(sum(r.quantity),0)::integer returned_quant
 greatest(b.quantity-coalesce(sum(r.quantity),0),0)::integer outstanding_quantity,
 max(r.returned_at) last_returned_at,b.security_officer_name issued_by_security,b.borrowed_at,
 b.expected_return_at,
-case when coalesce(sum(r.quantity),0)=0 and b.expected_return_at is not null and now()>b.expected_return_at then 'OVERDUE'
-when greatest(b.quantity-coalesce(sum(r.quantity),0),0)=0 then 'CLOSED'
+case when greatest(b.quantity-coalesce(sum(r.quantity),0),0)=0 then 'CLOSED'
+when b.expected_return_at is not null and now()>b.expected_return_at then 'OVERDUE'
 when coalesce(sum(r.quantity),0)>0 then 'PARTIALLY RETURNED' else 'ACTIVE' end status,
 (coalesce(sum(r.quantity),0)<>0 and coalesce(sum(r.quantity),0)<>b.quantity) discrepancy
 from public.key_borrowings b join public.submissions s on s.id=b.submission_id
