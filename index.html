@@ -49,7 +49,20 @@ async function submitToSupabase(form,data){const payload=Object.fromEntries(data
 function resetHome(){panel.classList.remove('visible');panel.innerHTML='';document.querySelectorAll('.choice').forEach(x=>x.setAttribute('aria-pressed','false'));window.scrollTo({top:0,behavior:'smooth'})}
 function showSuccess(key,data,result,waWindow){const form=forms[key],id=result?.submission_id||'HIKJ-SUBMISSION';lastSubmission={submissionId:id};if(key==='kembaliKunci'&&result?.key_return?.discrepancy){window.alert(`⚠️ DISCREPANCY QTY\nBorrowed: ${result.key_return.original_borrowed_quantity}\nReturned: ${result.key_return.total_returned}\nKey Number: ${result.key_return.key_number}`)}const wa=`https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(formatMessage(form.title,data))}`;if(waWindow&&!waWindow.closed){waWindow.location.href=wa}else{window.open(wa,'_blank','noopener,noreferrer')}resetHome()}
 function showForm(key){const form=forms[key];document.querySelectorAll('.choice').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.form===key)));panel.innerHTML=`<div class="panel-header"><h2>${form.title}</h2><p>${form.description}</p></div><form id="activeForm" novalidate>${form.fields.map(inputMarkup).join('')}<button class="submit" type="submit">SUBMIT</button></form><div class="notice" id="notice"></div>`;panel.classList.add('visible');panel.scrollIntoView({behavior:'smooth',block:'start'});panel.querySelector('form').addEventListener('submit',e=>submitForm(e,key))}
-async function submitForm(e,key){e.preventDefault();const form=forms[key],el=e.currentTarget,notice=panel.querySelector('#notice');if(!el.reportValidity())return;const btn=el.querySelector('.submit');btn.disabled=true;notice.textContent='Submitting…';notice.classList.remove('error');const data=new FormData(el);let waWindow=null;try{waWindow=window.open('about:blank','_blank');const result=await submitToSupabase(form,data);showSuccess(key,data,result,waWindow)}catch(err){if(waWindow&&!waWindow.closed)waWindow.close();const message=err?.message||'The form could not be submitted. Please try again.';notice.textContent=message;notice.classList.add('error');btn.disabled=false;if(key==='keluar'&&/Visitor not found/i.test(message)){window.alert('⚠️ WARNING\n\nNama atau Pass / Vest Number tidak ditemukan pada visitor yang masih berada di dalam hotel.\n\nSilakan periksa kembali data Exit Registration.');}else{window.alert(`⚠️ WARNING\n\n${message}`);}}}
+async function submitForm(e,key){e.preventDefault();const form=forms[key],el=e.currentTarget,notice=panel.querySelector('#notice');if(!el.reportValidity())return;const btn=el.querySelector('.submit');btn.disabled=true;notice.textContent='Submitting…';notice.classList.remove('error');const data=new FormData(el);
+if(key==='kembaliKunci'){
+  const confirmed=window.confirm(
+    'CONFIRM KEY RETURN\\n\\n'+
+    'Key Number: '+(data.get('keyNumber')||'—')+'\\n'+
+    'Returned By: '+(data.get('returnName')||'—')+'\\n'+
+    'Department: '+(data.get('department')||'—')+'\\n'+
+    'Quantity Returning: '+(data.get('qty')||'—')+'\\n'+
+    'Received By Security: '+(data.get('security')||'—')+'\\n\\n'+
+    'Please verify the quantity before confirming.'
+  );
+  if(!confirmed){btn.disabled=false;notice.textContent='Return cancelled.';return}
+}
+let waWindow=null;try{waWindow=window.open('about:blank','_blank');const result=await submitToSupabase(form,data);showSuccess(key,data,result,waWindow)}catch(err){if(waWindow&&!waWindow.closed)waWindow.close();const message=err?.message||'The form could not be submitted. Please try again.';notice.textContent=message;notice.classList.add('error');btn.disabled=false;if(key==='keluar'&&/Visitor not found/i.test(message)){window.alert('⚠️ WARNING\n\nNama atau Pass / Vest Number tidak ditemukan pada visitor yang masih berada di dalam hotel.\n\nSilakan periksa kembali data Exit Registration.');}else{window.alert(`⚠️ WARNING\n\n${message}`);}}}
 </script>
 <script>window.HIKJ_SUPABASE_PUBLISHABLE_KEY='sb_publishable_J6P-baCAZOoVxj2rHBZMkA_Ux4U5_mQ';</script>
 <script src="assets/package-distribution.js"></script>
