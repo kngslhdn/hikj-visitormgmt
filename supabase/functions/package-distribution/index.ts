@@ -48,7 +48,9 @@ Deno.serve(async (req) => {
           .select("id,submission_id,courier_name,phone,company_name,item_type,item_count,recipient_type,recipient_name,security_officer_name,created_at")
           .eq("submission_id", q).maybeSingle();
         if (exact && !distributedIds.includes(exact.id)) {
-          return json({ packages: [{ ...exact, package_number: exact.submission_id, status: "READY FOR DISTRIBUTION" }] });
+          const { data: sub } = await sb.from("submissions").select("submission_id").eq("id", exact.submission_id).maybeSingle();
+          const publicId = sub?.submission_id || exact.submission_id;
+          return json({ packages: [{ ...exact, submission_id: publicId, package_number: publicId, status: "READY FOR DISTRIBUTION" }] });
         }
       }
 
