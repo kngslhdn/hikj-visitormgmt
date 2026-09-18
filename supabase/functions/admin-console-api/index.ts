@@ -80,11 +80,48 @@ Deno.serve(async req=>{
     if(action==='keys'){const n=limitOf(url.searchParams.get('limit'),500,1000);const {data,error}=await sb.from('outstanding_keys').select('*').order('borrowed_at',{ascending:false}).limit(n);if(error)throw error;return json(req,{data:data||[]})}
     if(action==='key_history'){
       const n=limitOf(url.searchParams.get('limit'),5000,5000),q=(url.searchParams.get('q')||'').trim().toLowerCase(),from=url.searchParams.get('from'),to=isoEnd(url.searchParams.get('to')),status=(url.searchParams.get('status')||'').toUpperCase();
-      const [br,rr]=await Promise.all([sb.from('key_borrowings').select('id,submission_id,borrower_name,department,key_number,key_description,quantity,security_officer_name,borrowed_at,return_id').order('borrowed_at',{ascending:false}).limit(n),sb.from('key_returns').select('id,submission_id,borrowing_id,return_name,department,key_number,quantity,borrowed_quantity,discrepancy_qty,security_officer_name,returned_at').order('returned_at',{ascending:false}).limit(n)]);if(br.error)throw br.error;if(rr.error)throw rr.error;const retMap=new Map((rr.data||[]).map(x=>[x.borrowing_id,x]));const rows:any[]=[];
-      for(const x of br.data||[]){if(from&&x.borrowed_at<from)continue;if(to&&x.borrowed_at>=to)continue;const ret=retMap.get(x.id);const st=ret?(ret.discrepancy_qty?'RETURNED · DISCREPANCY QTY':'RETURNED'):'OUTSTANDING';if(status&&status!==st&&!(status==='BORROWED'&&!ret))continue;if(q&&!match(x,['borrower_name','department','key_number','key_description','security_officer_name'],q))continue;rows.push({record_type:'key_borrowing',person_name:x.borrower_name,department:x.department,key_number:x.key_number,key_description:x.key_description,quantity:x.quantity,event_at:x.borrowed_at,security_officer_name:x.security_officer_name,status:st,submission_id:x.submission_id,borrowed_quantity:x.quantity,returned_quantity:ret?.quantity??null,discrepancy_qty:!!ret?.discrepancy_qty})}
-      for(const x of rr.data||[]){if(from&&x.returned_at<from)continue;if(to&&x.returned_at>=to)continue;if(status&&status!=='RETURNED'&&status!=='RETURNED · DISCREPANCY QTY')continue;if(q&&!match(x,['return_name','department','key_number','security_officer_name'],q))continue;rows.push({record_type:'key_return',person_name:x.return_name,department:x.department,key_number:x.key_number,quantity:x.quantity,event_at:x.returned_at,security_officer_name:x.security_officer_name,status:x.discrepancy_qty?'RETURNED · DISCREPANCY QTY':'RETURNED',submission_id:x.submission_id,borrowed_quantity:x.borrowed_quantity,returned_quantity:x.quantity,discrepancy_qty:!!x.discrepancy_qty})}
-      rows.sort((a,b)=>new Date(b.event_at).getTime()-new Date(a.event_at).getTime());return json(req,{data:rows.slice(0,n)});
+      const {data,error}=await sb.from('key_control_transactions').select('*').order('borrowed_at',{ascending:false}).limit(n);
+      if(error)throw error;
+      const {data:returns,error:re}=await sb.from('key_return_events').select('*').order('returned_at',{ascending:false}).limit(n);
+      if(re)throw re;
+      let tx=(data||[]).filter((x:any)=>!from||x.borrowed_at>=from).filter((x:any)=>!to||x.borrowed_at<to);
+      if(q)tx=tx.filter((x:any)=>[x.submission_id,x.borrower_name,x.department,x.key_number,x.key_description,x.issued_by_security].some(v=>String(v||'').toLowerCase().includes(q)));
+      if(status){
+        tx=tx.filter((x:any)=>
+          status==='BORROWED'?true:
+          status==='OUTSTANDING'?Number(x.outstanding_quantity)>0:
+          status==='DISCREPANCY'?!!x.discrepancy:
+          String(x.status||'').toUpperCase()===status
+        );
+      }
+      const byId=new Map((returns||[]).map((r:any)=>[r.borrowing_id,[] as any[]]));
+      for(const r of returns||[]){if(byId.has(r.borrowing_id))byId.get(r.borrowing_id).push(r);}
+      const rows:any[]=[];
+      for(const x of tx){
+        rows.push({
+          record_type:'key_transaction',
+          transaction_id:x.borrowing_id,
+          submission_id:x.submission_id,
+          person_name:x.borrower_name,
+          department:x.department,
+          key_number:x.key_number,
+          key_description:x.key_description,
+          borrowed_quantity:x.borrowed_quantity,
+          returned_quantity:x.returned_quantity,
+          outstanding_quantity:x.outstanding_quantity,
+          event_at:x.borrowed_at,
+          issued_by_security:x.issued_by_security,
+          security_officer_name:x.issued_by_security,
+          last_returned_at:x.last_returned_at,
+          expected_return_at:x.expected_return_at,
+          status:x.status,
+          discrepancy:!!x.discrepancy,
+          return_events:byId.get(x.borrowing_id)||[]
+        });
+      }
+      return json(req,{data:rows});
     }
+
     if(action==='packages'){
       const n=limitOf(url.searchParams.get('limit'),200,1000),search=(url.searchParams.get('q')||'').trim().toLowerCase();const {data:packages,error}=await sb.from('package_registrations').select('id,submission_id,courier_name,phone,company_name,item_type,item_count,recipient_type,recipient_name,security_officer_name,photo_storage_path,created_at').order('created_at',{ascending:false}).limit(n);if(error)throw error;const rows=packages||[],ids=rows.map(x=>x.id);let ds:any[]=[];if(ids.length){const {data,error:de}=await sb.from('package_distributions').select('package_registration_id,recipient_name,security_hand_over,distributed_at,status').in('package_registration_id',ids);if(de)throw de;ds=data||[]}const dm=new Map(ds.map(x=>[x.package_registration_id,x]));const filtered:any[]=rows.filter((r:any)=>!search||[r.submission_id,r.courier_name,r.phone,r.company_name,r.item_type,r.recipient_type,r.recipient_name,r.security_officer_name].some(x=>String(x||'').toLowerCase().includes(search)));for(const r of filtered as any[]){if(r.photo_storage_path){const ss=await sb.storage.from('package-photos').createSignedUrl(r.photo_storage_path,600);if(!ss.error)r.photo_url=ss.data.signedUrl}const drow=dm.get(r.id);r.distribution_status=drow?.status||'READY FOR DISTRIBUTION';r.distributed_to=drow?.recipient_name||null;r.distribution_security_hand_over=drow?.security_hand_over||null;r.distributed_at=drow?.distributed_at||null}return json(req,{data:filtered});
     }
