@@ -25,7 +25,7 @@ async function keys(){
    const totalReturned=tx.reduce((n,x)=>n+Number(x.returned_quantity||0),0);
    const totalOutstanding=tx.reduce((n,x)=>n+Number(x.outstanding_quantity||0),0);
    const partial=tx.filter(x=>Number(x.returned_quantity||0)>0&&Number(x.outstanding_quantity||0)>0).length;
-   const discrepancy=tx.filter(x=>x.discrepancy).length;
+   const discrepancy=tx.filter(x=>(x.return_events||[]).some(e=>e.discrepancy_qty)).length;
    const overdue=tx.filter(x=>x.status==='OVERDUE').length;
    $('km').innerHTML=`
      <div><span>Borrowed Qty</span><b>${totalBorrowed}</b></div>
@@ -42,7 +42,7 @@ async function keys(){
      if(tab==='Outstanding')z=z.filter(x=>Number(x.outstanding_quantity)>0);
      $('kh').innerHTML='<tr><th>Transaction</th><th>Key</th><th>Borrower</th><th>Issued By</th><th>Borrowed</th><th>Returned</th><th>Outstanding</th><th>Last Return</th><th>Expected Return</th><th>Status</th></tr>';
      $('krows').innerHTML=z.length?z.map(x=>{
-       const attention=x.discrepancy||x.status==='OVERDUE'||Number(x.outstanding_quantity)>0;
+       const attention=x.status==='OVERDUE'||Number(x.outstanding_quantity)>0||(x.return_events||[]).some(e=>e.discrepancy_qty);
        return `<tr>
          <td><b>${esc(x.submission_id)}</b><small>${esc(x.transaction_id)}</small></td>
          <td><b>${esc(x.key_number)}</b><small>${esc(x.key_description||'—')}</small></td>
@@ -53,7 +53,7 @@ async function keys(){
          <td><b>${esc(x.outstanding_quantity)}</b></td>
          <td>${fmt(x.last_returned_at)}</td>
          <td>${fmt(x.expected_return_at)}</td>
-         <td>${badge(attention?'warn':'ok',x.discrepancy?(x.status+' · DISCREPANCY'):x.status)}</td>
+         <td>${badge(x.status==='OVERDUE'||(x.return_events||[]).some(e=>e.discrepancy_qty)?'warn':x.status==='PARTIALLY RETURNED'?'key':'ok',x.status+( (x.return_events||[]).some(e=>e.discrepancy_qty)?' · DISCREPANCY':'') )}</td>
        </tr>`
      }).join(''):empty(10,'No key transactions found.');
    }
