@@ -29,7 +29,7 @@ async function keys(){
    if(tab==='Key Returned'){
      const events=tx.flatMap(x=>(x.return_events||[]).map(e=>({...e,transaction_id:x.transaction_id,key_number:x.key_number,borrower_name:x.person_name,department:x.department,original_borrowed_quantity:x.borrowed_quantity})));
      $('kh').innerHTML='<tr><th>Return ID</th><th>Transaction</th><th>Return Time</th><th>Key</th><th>Borrower</th><th>Returned By</th><th>Qty</th><th>Received By Security</th><th>Status</th></tr>';
-     $('krows').innerHTML=events.length?events.map(e=>`<tr><td><b>${esc(e.return_public_id||'—')}</b></td><td><b>${esc(e.transaction_id||'—')}</b></td><td>${fmt(e.returned_at)}</td><td>${esc(e.key_number)}</td><td>${esc(e.borrower_name)}</td><td>${esc(e.returned_by||'—')}</td><td>${esc(e.returned_quantity)}</td><td>${esc(e.received_by_security||'—')}</td><td>${badge(e.discrepancy_qty?'warn':'ok',e.discrepancy_qty?'DISCREPANCY':'RETURNED')}</td></tr>`).join(''):empty(8,'No return events found');
+     $('krows').innerHTML=events.length?events.map(e=>`<tr><td><b>${esc(e.return_public_id||'—')}</b></td><td><b>${esc(e.transaction_id||'—')}</b></td><td>${fmt(e.returned_at)}</td><td>${esc(e.key_number)}</td><td>${esc(e.borrower_name)}</td><td>${esc(e.returned_by||'—')}</td><td>${esc(e.returned_quantity)}</td><td>${esc(e.received_by_security||'—')}</td><td>${badge(e.discrepancy_qty?'warn':'ok',e.discrepancy_qty?'DISCREPANCY':'RETURNED')}</td></tr>`).join(''):empty(9,'No return events found');
    }else{
      let z=tx;
      if(tab==='Outstanding')z=z.filter(x=>Number(x.outstanding_quantity)>0);
