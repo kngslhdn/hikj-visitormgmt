@@ -16,7 +16,7 @@ b.expected_return_at,
 case when greatest(b.quantity-coalesce(sum(r.quantity),0),0)=0 then 'CLOSED'
 when b.expected_return_at is not null and now()>b.expected_return_at then 'OVERDUE'
 when coalesce(sum(r.quantity),0)>0 then 'PARTIALLY RETURNED' else 'ACTIVE' end status,
-(coalesce(sum(r.quantity),0)<>0 and coalesce(sum(r.quantity),0)<>b.quantity) discrepancy
+false as discrepancy
 from public.key_borrowings b join public.submissions s on s.id=b.submission_id
 left join public.key_returns r on r.borrowing_id=b.id
 group by b.id,s.submission_id,b.borrower_name,b.department,b.key_number,b.key_description,b.quantity,
