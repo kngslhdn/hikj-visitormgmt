@@ -1,7 +1,7 @@
 /* HIKJ Package Distribution - Security workflow */
 (() => {
-  const FUNCTION_URL = 'https://hmqgmusellcetakoalva.supabase.co/functions/v1/package-distribution';
-  const SUPABASE_URL = 'https://hmqgmusellcetakoalva.supabase.co';
+  const FUNCTION_URL = window.location.origin+'/functions/v1/package-distribution';
+  const SUPABASE_URL = window.location.origin;
   let client = null;
   let selected = null;
   let authSession = null;

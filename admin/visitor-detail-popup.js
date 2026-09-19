@@ -1,5 +1,5 @@
 (()=>{
-const U='https://hmqgmusellcetakoalva.supabase.co',K='sb_publishable_J6P-baCAZOoVxj2rHBZMkA_Ux4U5_mQ',API=U+'/functions/v1/visitor-detail';
+const U=window.location.origin,K='sb_publishable_PnyJg3CYoApOX69rBw2RLQ_t_jAef27',API=U+'/functions/v1/visitor-detail';
 let client=null,session=null,loading=false;
 const $=id=>document.getElementById(id);
 const esc=v=>String(v??'').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#039;'}[c]));

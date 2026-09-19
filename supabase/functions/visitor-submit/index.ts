@@ -9,10 +9,8 @@ const normText=(v:unknown)=>clean(v).toLowerCase().replace(/\s+/g,' ');
 const types:Record<string,string>={entry:'visitor_entry',masuk:'visitor_entry',exit:'visitor_exit',keluar:'visitor_exit',borrowing:'key_borrowing',pinjamKunci:'key_borrowing',return:'key_return',kembaliKunci:'key_return',package:'package_registration',paket:'package_registration'};
 const val=(b:any,...keys:string[])=>keys.map(k=>b[k]).find(v=>v!==undefined&&v!==null&&String(v).trim()!=='')??'';
 
-function timestamp(v:unknown){
- const s=clean(v); if(!s)return new Date().toISOString();
- if(/^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/.test(s)){const [date,time]=s.split(' ');const [dd,mm,yyyy]=date.split('/');const d=new Date(Number(yyyy),Number(mm)-1,Number(dd),Number(time.slice(0,2)),Number(time.slice(3,5)));if(!Number.isNaN(d.getTime()))return d.toISOString();}
- const d=new Date(s); return Number.isNaN(d.getTime())?new Date().toISOString():d.toISOString();
+function timestamp(_v:unknown){
+ return new Date().toISOString();
 }
 
 async function visitorIdentity(name:string,mobile:string,company:string,category:string|null){
@@ -106,5 +104,5 @@ Deno.serve(async req=>{
    const path=await uploadPackagePhoto(clean(body.foto||body.photo_data_url));const {error}=await supabase.from('package_registrations').insert({submission_id:submission.id,courier_name:clean(val(body,'courier_name','namaPengantar')),phone:mobile||null,phone_normalized:phone(mobile)||null,company_name:company,item_type:clean(val(body,'item_type','jenisBarang')).toUpperCase(),item_count:Number(body.item_count||body.number_of_items||body.jumlah||1),recipient_type:clean(val(body,'recipient_type','tujuan')).toUpperCase(),recipient_name:clean(val(body,'recipient_name','namaTujuan')),security_officer_name:clean(val(body,'security_officer_name','security')),photo_storage_path:path});if(error)throw error;
   }
   await supabase.from('submissions').update({status:'completed'}).eq('id',submission.id);return json({ok:true,submission_id:submission.submission_id,...(keyReturnResult?{key_return:keyReturnResult}:{})});
- }catch(e){console.error(e);return json({error:e instanceof Error?e.message:'Submission failed'},500)}
+ }catch(e){console.error(e);return json({error:'Submission failed'},500)}
 });
