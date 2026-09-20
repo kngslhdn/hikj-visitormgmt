@@ -6,7 +6,7 @@ const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,
 const clean=(v:unknown)=>String(v??'').trim().replace(/[<>]/g,'');
 const phone=(v:unknown)=>clean(v).replace(/[^0-9+]/g,'').replace(/^0+/,'');
 const normText=(v:unknown)=>clean(v).toLowerCase().replace(/\s+/g,' ');
-const types:Record<string,string>={entry:'visitor_entry',masuk:'visitor_entry',exit:'visitor_exit',keluar:'visitor_exit',borrowing:'key_borrowing',pinjamKunci:'key_borrowing',return:'key_return',kembaliKunci:'key_return',package:'package_registration',paket:'package_registration'};
+const types:Record<string,string>={entry:'visitor_entry',masuk:'visitor_entry',exit:'visitor_exit',keluar:'visitor_exit',borrowing:'key_borrowing',pinjamKunci:'key_borrowing',return:'key_return',kembaliKunci:'key_return',package:'package_registration',paket:'package_registration',key_asset_lookup:'key_asset_lookup'};
 const val=(b:any,...keys:string[])=>keys.map(k=>b[k]).find(v=>v!==undefined&&v!==null&&String(v).trim()!=='')??'';
 
 function timestamp(_v:unknown){
@@ -40,7 +40,16 @@ async function uploadPackagePhoto(dataUrl:string){
 Deno.serve(async req=>{
  if(req.method==='OPTIONS')return new Response(null,{status:204,headers:cors});if(req.method!=='POST')return json({error:'Method not allowed'},405);
  try{
-  const body=await req.json();const rawType=clean(body.type||body.form_type),type=types[rawType]||rawType;if(!['visitor_entry','visitor_exit','key_borrowing','key_return','package_registration'].includes(type))return json({error:'Invalid submission type'},400);const settings=await publicSettings();const ops=settings.operations||{};const enabledByType:Record<string,string>={visitor_entry:'visitor_entry_enabled',visitor_exit:'visitor_exit_enabled',key_borrowing:'key_borrowing_enabled',key_return:'key_return_enabled',package_registration:'package_registration_enabled'};if(enabledByType[type]&&ops[enabledByType[type]]===false)return json({error:'This service is currently disabled by Security Administration.'},403);
+  const body=await req.json();const rawType=clean(body.type||body.form_type),type=types[rawType]||rawType;if(!['visitor_entry','visitor_exit','key_borrowing','key_return','package_registration','key_asset_lookup'].includes(type))return json({error:'Invalid submission type'},400);const settings=await publicSettings();const ops=settings.operations||{};const enabledByType:Record<string,string>={visitor_entry:'visitor_entry_enabled',visitor_exit:'visitor_exit_enabled',key_borrowing:'key_borrowing_enabled',key_return:'key_return_enabled',package_registration:'package_registration_enabled'};if(enabledByType[type]&&ops[enabledByType[type]]===false)return json({error:'This service is currently disabled by Security Administration.'},403);
+  if(type==='key_asset_lookup'){
+   const key=clean(body.key_number||body.keyNumber);
+   if(!key)return json({error:'Please enter Key Number.'},400);
+   const {data,error}=await supabase.from('key_assets').select('key_number,description,quantity,active').eq('key_number',key).maybeSingle();
+   if(error)throw error;
+   if(!data)return json({ok:false,error:`Key Number ${key} was not found in Key Assets.`},404);
+   if(!data.active)return json({ok:false,error:`Key Number ${key} is inactive.`},409);
+   return json({ok:true,key_asset:{key_number:data.key_number,description:data.description||'',quantity:Number(data.quantity||0)}});
+  }
   const idem=clean(req.headers.get('idempotency-key')||body.idempotency_key);if(idem){const {data}=await supabase.from('submissions').select('submission_id').eq('idempotency_key',idem).maybeSingle();if(data)return json({ok:true,duplicate:true,submission_id:data.submission_id});}
   const name=clean(val(body,'name','visitor_name','nama','returnName','borrowerName','namaPengantar')),mobile=clean(val(body,'phone','mobile_phone','telepon')),company=clean(val(body,'company_name','company','perusahaan'));let visitorId:string|null=null;let matchedExitEntry:any=null;
   if(type==='visitor_entry'){
@@ -67,9 +76,14 @@ Deno.serve(async req=>{
   }
 
   if(type==='key_borrowing'){
-   const key=clean(body.key_number||body.keyNumber),quantity=Number(body.quantity||body.qty||1);
+   const key=clean(body.key_number||body.keyNumber);
    if(!key)return json({error:'Please enter Key Number.'},400);
-   if(!Number.isInteger(quantity)||quantity<1)return json({error:'Quantity of Keys must be a whole number greater than 0.'},400);
+   const {data:keyAsset,error:keyAssetError}=await supabase.from('key_assets').select('key_number,description,quantity,active').eq('key_number',key).maybeSingle();
+   if(keyAssetError)throw keyAssetError;
+   if(!keyAsset)return json({ok:false,error:`Key Number ${key} was not found in Key Assets.`},404);
+   if(!keyAsset.active)return json({ok:false,error:`Key Number ${key} is inactive.`},409);
+   const quantity=Number(keyAsset.quantity);
+   if(!Number.isInteger(quantity)||quantity<1)return json({ok:false,error:`Key Number ${key} has an invalid quantity configured in Key Assets.`},409);
    const {data,error}=await supabase.from('key_control_transactions').select('*').eq('key_number',key).gt('outstanding_quantity',0).limit(1).maybeSingle();
    if(error)throw error;
    if(data)return json({ok:false,error:`Key ${key} is currently outstanding to ${data.borrower_name} with ${data.outstanding_quantity} key(s) outstanding. Please return the outstanding key(s) before a new borrowing.`},409);
@@ -83,15 +97,20 @@ Deno.serve(async req=>{
    const pass=clean(val(body,'pass_vest_number','pass'));const entry=matchedExitEntry;const exitName=clean(entry?.visitor_name||entry?.visitor_name_snapshot||'');
    const {data:ex,error}=await supabase.from('visitor_exits').insert({submission_id:submission.id,visitor_id:visitorId,entry_id:entry.id,visitor_name:exitName,pass_vest_number:pass,security_officer_name:clean(val(body,'security_officer_name','security')),exit_at:new Date().toISOString()}).select('id').single();if(error)throw error;if(entry.id)await supabase.from('visitor_entries').update({exit_id:ex.id}).eq('id',entry.id);
   }else if(type==='key_borrowing'){
-   const key=clean(body.key_number||body.keyNumber),quantity=Number(body.quantity||body.qty||1);
+   const key=clean(body.key_number||body.keyNumber);
    if(!key)return json({error:'Please enter Key Number.'},400);
-   if(!Number.isInteger(quantity)||quantity<1)return json({error:'Quantity of Keys must be a whole number greater than 0.'},400);
+   const {data:keyAsset,error:keyAssetError}=await supabase.from('key_assets').select('key_number,description,quantity,active').eq('key_number',key).maybeSingle();
+   if(keyAssetError)throw keyAssetError;
+   if(!keyAsset)return json({ok:false,error:`Key Number ${key} was not found in Key Assets.`},404);
+   if(!keyAsset.active)return json({ok:false,error:`Key Number ${key} is inactive.`},409);
+   const quantity=Number(keyAsset.quantity);
+   if(!Number.isInteger(quantity)||quantity<1)return json({ok:false,error:`Key Number ${key} has an invalid quantity configured in Key Assets.`},409);
    const {data,error}=await supabase.from('key_control_transactions').select('key_number,borrower_name,outstanding_quantity').eq('key_number',key).gt('outstanding_quantity',0).limit(1).maybeSingle();
    if(error)throw error;
    if(data)return json({ok:false,error:`Key ${key} is currently outstanding to ${data.borrower_name} with ${data.outstanding_quantity} key(s) outstanding. Please return the outstanding key(s) before a new borrowing.`},409);
    const borrowerName=clean(val(body,'borrower_name','borrowerName'));
    const department=clean(body.department);
-   const description=clean(body.key_description||body.description);
+   const description=clean(keyAsset.description||'');
    const officer=clean(val(body,'security_officer_name','security'));
    if(!borrowerName||!officer)return json({error:'Borrower Name and Issued By Security Officer are required.'},400);
    const borrowedAt=timestamp(body.borrowed_at||body.datetime);
