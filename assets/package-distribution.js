@@ -164,7 +164,7 @@
       <label>Package Owner / Recipient Name</label><input id="pdRecipient" value="${esc(selected.recipient_name || '')}" placeholder="Recipient / Representative Name" autocomplete="off">
       <small class="pd-hint">Defaulted to the registered recipient. Edit if the package is received by a representative or delegate.</small>
       <label>Security Hand Over *</label><input id="pdSecurity" placeholder="Enter Security Hand Over" required>
-      <label>Distribution Date &amp; Time</label><input value="System timestamp on submission" readonly>
+      <label>Distribution Date &amp; Time</label><input value="${fmt(new Date())}" readonly>
       <button class="submit" id="pdSubmit">SUBMIT DISTRIBUTION</button></div>`;
     target.querySelector('#pdSubmit').onclick = submitDistribution;
   }
