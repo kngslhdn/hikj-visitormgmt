@@ -26,7 +26,31 @@ async function admins(){
  document.querySelectorAll('[data-admin-edit]').forEach(b=>b.onclick=()=>adminDialog(rows.find(x=>x.user_id===b.dataset.adminEdit)));
 }
 function adminDialog(row=null){
- const d=document.createElement('dialog');d.style.cssText='border:0;border-radius:14px;padding:0;width:min(520px,calc(100% - 24px));box-shadow:0 25px 80px #0005';d.innerHTML=`<form method="dialog" class="s-body"><h2 style="margin:0 0 14px;color:#071a30;font-size:16px">${row?'Edit Admin':'Add Admin'}</h2><div class="s-grid"><div class="s-field"><label>Full Name</label><input id="adName" required value="${esc(row?.full_name||'')}"></div><div class="s-field"><label>Email</label><input id="adEmail" type="email" required value="${esc(row?.email||'')}" ${row?'readonly':''}></div><div class="s-field"><label>Role</label><select id="adRole"><option>VIEWER</option><option>ADMIN</option><option>MANAGER</option><option>SUPERADMIN</option></select></div><div class="s-field"><label>${row?'New Password (optional)':'Temporary Password'}</label><input id="adPass" type="password" ${row?'':'required'} minlength="8"></div></div><div class="s-actions"><button type="button" class="s-btn" id="adCancel">Cancel</button><button type="button" class="s-btn primary" id="adSave">Save</button></div><div class="s-msg" id="adMsg"></div></form>`;document.body.appendChild(d);$('adRole').value=row?.role||'VIEWER';d.showModal();$('adCancel').onclick=()=>d.close();$('adSave').onclick=async()=>{try{const body={user_id:row?.user_id,full_name:$('adName').value.trim(),email:$('adEmail').value.trim(),role:$('adRole').value,password:$('adPass').value};if(!body.full_name||!body.email)throw Error('Name and email are required.');if(!row&&!body.password)throw Error('Temporary password is required.');await req(row?'update_admin':'create_admin','POST',body);d.close();await admins()}catch(e){msg('adMsg',e.message,true)}}}
+ const d=document.createElement('dialog');
+ d.style.cssText='border:0;border-radius:14px;padding:0;width:min(520px,calc(100% - 24px));box-shadow:0 25px 80px #0005';
+ d.innerHTML=`<form method="dialog" class="s-body"><h2 style="margin:0 0 14px;color:#071a30;font-size:16px">${row?'Edit Admin':'Add Admin'}</h2><div class="s-grid"><div class="s-field"><label>Full Name</label><input class="adName" required value="${esc(row?.full_name||'')}"></div><div class="s-field"><label>Email</label><input class="adEmail" type="email" required value="${esc(row?.email||'')}" ${row?'readonly':''}></div><div class="s-field"><label>Role</label><select class="adRole"><option>VIEWER</option><option>ADMIN</option><option>MANAGER</option><option>SUPERADMIN</option></select></div><div class="s-field"><label>${row?'New Password (optional)':'Temporary Password'}</label><input class="adPass" type="password" ${row?'':'required'} minlength="8"></div></div><div class="s-actions"><button type="button" class="s-btn adCancel">Cancel</button><button type="button" class="s-btn primary adSave">Save</button></div><div class="s-msg adMsg"></div></form>`;
+ document.body.appendChild(d);
+ const name=d.querySelector('.adName'),email=d.querySelector('.adEmail'),role=d.querySelector('.adRole'),pass=d.querySelector('.adPass'),cancel=d.querySelector('.adCancel'),save=d.querySelector('.adSave'),message=d.querySelector('.adMsg');
+ role.value=row?.role||'VIEWER';
+ const cleanup=()=>d.remove();
+ d.addEventListener('close',cleanup,{once:true});
+ d.showModal();
+ cancel.onclick=()=>d.close();
+ save.onclick=async()=>{
+   save.disabled=true;cancel.disabled=true;save.textContent='Saving...';
+   try{
+     const body={user_id:row?.user_id,full_name:name.value.trim(),email:email.value.trim(),role:role.value,password:pass.value};
+     if(!body.full_name||!body.email)throw Error('Name and email are required.');
+     if(!row&&!body.password)throw Error('Temporary password is required.');
+     await req(row?'update_admin':'create_admin','POST',body);
+     d.close();
+     await admins();
+   }catch(e){
+     message.textContent=e.message||'Request failed';message.classList.add('err');
+     save.disabled=false;cancel.disabled=false;save.textContent='Save';
+   }
+ }
+}
 async function keys(){
  const r=await req('key_assets');const rows=r.data||[];
  $('sContent').innerHTML=card('Key Assets','Master inventory for physical hotel keys',`<div class="s-actions"><button class="s-btn primary" id="addKey">Add Key Asset</button></div><div class="s-table"><table><thead><tr><th>Key Number</th><th>Description</th><th>Location / Department</th><th>Quantity</th><th>Status</th><th>Actions</th></tr></thead><tbody>${rows.length?rows.map(x=>`<tr><td><b>${esc(x.key_number)}</b></td><td>${esc(x.key_description||'—')}</td><td>${esc(x.location_department||'—')}</td><td>${esc(x.quantity)}</td><td><span class="s-badge ${x.active?'s-on':'s-off'}">${x.active?'ACTIVE':'INACTIVE'}</span></td><td><button class="s-btn" data-key-edit="${x.id}">Edit</button></td></tr>`).join(''):'<tr><td colspan="6">No key assets configured.</td></tr>'}</tbody></table></div>`);
