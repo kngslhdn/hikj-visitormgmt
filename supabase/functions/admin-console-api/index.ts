@@ -39,7 +39,7 @@ async function getReport(req:Request,url:URL){
   }
   let rows=await getOverallRows(start,to);
   if(type&&type!=='overall')rows=rows.filter(x=>x.record_type===type);
-  if(search)rows=rows.filter(x=>match(x,['reference','person_name','visitor_name','recipient_name','company_name','department','key_number','security_officer_name'],search));
+  if(search)rows=rows.filter(x=>Object.values(x).some(v=>String(v??'').toLowerCase().includes(search)));
   if(status)rows=rows.filter(x=>String(x.status||'').toUpperCase()===status);
   rows.sort((a,b)=>new Date(b.event_at).getTime()-new Date(a.event_at).getTime());
   return json(req,{data:rows.slice(0,n),metrics:summaryMetrics(rows),analytics:dailyAnalytics(rows)});
