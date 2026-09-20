@@ -10,12 +10,12 @@ COMMENT ON COLUMN public.package_distributions.note IS
 CREATE OR REPLACE VIEW public.package_distribution_history AS
 SELECT
   d.id,
+  d.distribution_number,
   d.package_registration_id,
   d.package_number,
   d.registered_recipient_name,
   d.recipient_name,
   d.security_hand_over,
-  d.note,
   d.distributed_at,
   d.status,
   d.created_at,
@@ -23,7 +23,8 @@ SELECT
   p.courier_name,
   p.item_type,
   p.item_count,
-  p.created_at AS registered_at
+  p.created_at AS registered_at,
+  d.note
 FROM public.package_distributions d
 JOIN public.package_registrations p ON p.id = d.package_registration_id;
 
