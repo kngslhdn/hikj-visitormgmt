@@ -86,6 +86,8 @@ Deno.serve(async (req) => {
       const packageRegistrationId = String(body.package_registration_id || "").trim();
       const securityHandOver = String(body.security_hand_over || "").trim();
       const recipientName = String(body.recipient_name || "").trim();
+      const noteValue = body.note == null ? "" : String(body.note).trim();
+      const note = noteValue || null;
       if (!packageRegistrationId) return json({ error: "Package not found." }, 404);
       if (!securityHandOver) return json({ error: "Please enter Security Hand Over." }, 400);
       if (!recipientName) return json({ error: "Please enter Recipient / Representative Name." }, 400);
@@ -103,9 +105,10 @@ Deno.serve(async (req) => {
         registered_recipient_name: pkg.recipient_name,
         recipient_name: recipientName,
         security_hand_over: securityHandOver,
+        note,
         distributed_at: new Date().toISOString(),
         status: "DISTRIBUTED",
-      }).select("id,package_number,recipient_name,security_hand_over,distributed_at,status").single();
+      }).select("id,package_number,recipient_name,security_hand_over,note,distributed_at,status").single();
       if (insertError) {
         if (insertError.code === "23505") return json({ error: "Package has already been distributed." }, 409);
         return json({ error: "Unable to complete package distribution. Please try again." }, 500);
