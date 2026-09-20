@@ -56,6 +56,8 @@ kembaliKunci:{title:'Key Return',description:'Enter the key details. The system 
 paket:{title:'Package Registration',description:'Record the package delivery and item photo.',type:'package_registration',icon:'package',upload:true,fields:[['namaPengantar','Courier Name'],['telepon','Phone Number','tel'],['perusahaan','Expedition Company'],['jenisBarang','Item Type','select',['LETTER','PACKAGE']],['jumlah','Number of Items','number'],['tujuan','Recipient Type','select',['STAFF','GUEST']],['namaTujuan','Recipient Name'],['security','Security Officer Name'],['foto','Item Photo','file']]}};
 const choiceRoot=document.querySelector('#choices'),panel=document.querySelector('#panel');
 let lastSubmission=null;
+let keyAssetLookupTimer=null;
+let keyAssetLookupSeq=0;
 const dateText=()=>{const n=new Date();return n.toLocaleDateString('en-GB')+' '+n.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})};
 const escapeHtml=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;').replace(/'/g,'&#039;');
 function futureDateTimeValue(){const d=new Date(Date.now()+2*60*60*1000),p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'T'+p(d.getHours())+':'+p(d.getMinutes())}
@@ -67,8 +69,60 @@ async function readFile(file){if(!file)return '';return await new Promise((res,r
 async function submitToSupabase(form,data){const payload=Object.fromEntries(data.entries());payload.type=form.type;payload.submission_source='public-web';payload.idempotency_key=crypto.randomUUID();if(form.upload){const file=data.get('foto');payload.foto=await readFile(file)}const r=await fetch(SUPABASE_FUNCTION_URL,{method:'POST',headers:{'Content-Type':'application/json','idempotency-key':payload.idempotency_key},body:JSON.stringify(payload)});let result=null;try{result=await r.json()}catch{}if(!r.ok||!result?.ok)throw Error(result?.error||`HTTP ${r.status}`);return result}
 function resetHome(){panel.classList.remove('visible');panel.innerHTML='';document.querySelectorAll('.choice').forEach(x=>x.setAttribute('aria-pressed','false'));window.scrollTo({top:0,behavior:'smooth'})}
 function showSuccess(key,data,result,waWindow){const form=forms[key],id=result?.submission_id||'HIKJ-SUBMISSION';lastSubmission={submissionId:id};if(key==='kembaliKunci'&&result?.key_return?.discrepancy){window.alert(`⚠️ DISCREPANCY QTY\nBorrowed: ${result.key_return.original_borrowed_quantity}\nReturned: ${result.key_return.total_returned}\nKey Number: ${result.key_return.key_number}`)}const waNumber=String(result?.whatsapp_number||WA_NUMBER);const wa=`https://wa.me/${waNumber}?text=${encodeURIComponent(formatMessage(form.title,data))}`;if(waWindow&&!waWindow.closed){waWindow.location.href=wa}else{window.open(wa,'_blank','noopener,noreferrer')}resetHome()}
-function showForm(key){const form=forms[key];document.querySelectorAll('.choice').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.form===key)));panel.innerHTML=`<div class="panel-header"><h2>${form.title}</h2><p>${form.description}</p></div><form id="activeForm" novalidate>${form.fields.map(inputMarkup).join('')}<button class="submit" type="submit">SUBMIT</button></form><div class="notice" id="notice"></div>`;panel.classList.add('visible');panel.scrollIntoView({behavior:'smooth',block:'start'});panel.querySelector('form').addEventListener('submit',e=>submitForm(e,key))}
-async function submitForm(e,key){e.preventDefault();const form=forms[key],el=e.currentTarget,notice=panel.querySelector('#notice');if(!el.reportValidity())return;const btn=el.querySelector('.submit');btn.disabled=true;notice.textContent='Submitting…';notice.classList.remove('error');const data=new FormData(el);
+async function lookupKeyAsset(keyNumber,form,notice){
+ const key=String(keyNumber||'').trim();
+ const description=document.querySelector('#description');
+ const qty=document.querySelector('#qty');
+ if(description)description.value='';
+ if(qty)qty.value='';
+ if(form)form.dataset.keyAssetValid='false';
+ if(!key){if(notice)notice.textContent='Enter a Key Number to load Key Description and Quantity.';return}
+ if(notice){notice.textContent='Checking Key Asset…';notice.classList.remove('error')}
+ const requestId=++keyAssetLookupSeq;
+ try{
+  const r=await fetch(SUPABASE_FUNCTION_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'key_asset_lookup',key_number:key})});
+  let result=null;try{result=await r.json()}catch{}
+  if(requestId!==keyAssetLookupSeq)return;
+  if(!r.ok||!result?.ok)throw Error(result?.error||'Key Number could not be verified.');
+  const asset=result.key_asset||{};
+  if(description)description.value=asset.description||'';
+  if(qty)qty.value=asset.quantity??'';
+  if(form)form.dataset.keyAssetValid='true';
+  if(notice){notice.textContent='Key Asset verified. Description and Quantity are loaded from Key Assets.';notice.classList.remove('error')}
+ }catch(err){
+  if(requestId!==keyAssetLookupSeq)return;
+  if(form)form.dataset.keyAssetValid='false';
+  if(notice){notice.textContent=err?.message||'Unable to verify Key Number.';notice.classList.add('error')}
+ }
+}
+function wireKeyBorrowingLookup(form){
+ const keyInput=document.querySelector('#keyNumber');
+ const description=document.querySelector('#description');
+ const qty=document.querySelector('#qty');
+ const notice=document.querySelector('#notice');
+ if(!keyInput||!form)return;
+ if(description){description.readOnly=true;description.setAttribute('aria-readonly','true')}
+ if(qty){qty.readOnly=true;qty.setAttribute('aria-readonly','true')}
+ form.dataset.keyAssetValid='false';
+ keyInput.addEventListener('input',()=>{
+  clearTimeout(keyAssetLookupTimer);
+  ++keyAssetLookupSeq;
+  form.dataset.keyAssetValid='false';
+  if(description)description.value='';
+  if(qty)qty.value='';
+  if(notice){notice.textContent='';notice.classList.remove('error')}
+  const value=keyInput.value.trim();
+  if(!value)return;
+  keyAssetLookupTimer=setTimeout(()=>lookupKeyAsset(value,form,notice),350);
+ });
+ keyInput.addEventListener('blur',()=>{
+  clearTimeout(keyAssetLookupTimer);
+  const value=keyInput.value.trim();
+  if(value)lookupKeyAsset(value,form,notice);
+ });
+}
+function showForm(key){const form=forms[key];document.querySelectorAll('.choice').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.form===key)));panel.innerHTML=`<div class="panel-header"><h2>${form.title}</h2><p>${form.description}</p></div><form id="activeForm" novalidate>${form.fields.map(inputMarkup).join('')}<button class="submit" type="submit">SUBMIT</button></form><div class="notice" id="notice"></div>`;panel.classList.add('visible');panel.scrollIntoView({behavior:'smooth',block:'start'});const activeForm=panel.querySelector('form');activeForm.addEventListener('submit',e=>submitForm(e,key));if(key==='pinjamKunci')wireKeyBorrowingLookup(activeForm)}
+async function submitForm(e,key){e.preventDefault();const form=forms[key],el=e.currentTarget,notice=panel.querySelector('#notice');if(!el.reportValidity())return;if(key==='pinjamKunci'&&el.dataset.keyAssetValid!=='true'){notice.textContent='Please enter a valid active Key Number and wait for Key Description and Quantity to load.';notice.classList.add('error');return;}const btn=el.querySelector('.submit');btn.disabled=true;notice.textContent='Submitting…';notice.classList.remove('error');const data=new FormData(el);
 if(key==='kembaliKunci'){
   const confirmed=window.confirm(
     'CONFIRM KEY RETURN\n\n'+
