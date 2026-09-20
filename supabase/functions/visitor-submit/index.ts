@@ -27,6 +27,12 @@ async function findExitEntry(pass:string){
  return (data||[]).find(e=>passKey&&normText(e.pass_vest_number)===passKey)||null;
 }
 
+async function publicSettings(){
+ const {data,error}=await supabase.from('app_settings').select('setting_key,setting_value,active').in('setting_key',['whatsapp','operations']);
+ if(error)throw error;
+ return Object.fromEntries((data||[]).map((x:any)=>[x.setting_key,x.setting_value]));
+}
+
 async function uploadPackagePhoto(dataUrl:string){
  if(!dataUrl||!dataUrl.startsWith('data:image/'))return null;const match=dataUrl.match(/^data:(image\/(?:jpeg|png|webp));base64,(.+)$/);if(!match)return null;const bytes=Uint8Array.from(atob(match[2]),c=>c.charCodeAt(0));if(bytes.length>5*1024*1024)throw Error('Package photo exceeds 5 MB');const ext=match[1].split('/')[1].replace('jpeg','jpg');const path=`${new Date().toISOString().slice(0,10)}/${crypto.randomUUID()}.${ext}`;const {error}=await supabase.storage.from('package-photos').upload(path,bytes,{contentType:match[1],upsert:false});if(error)throw error;return path;
 }
@@ -34,7 +40,7 @@ async function uploadPackagePhoto(dataUrl:string){
 Deno.serve(async req=>{
  if(req.method==='OPTIONS')return new Response(null,{status:204,headers:cors});if(req.method!=='POST')return json({error:'Method not allowed'},405);
  try{
-  const body=await req.json();const rawType=clean(body.type||body.form_type),type=types[rawType]||rawType;if(!['visitor_entry','visitor_exit','key_borrowing','key_return','package_registration'].includes(type))return json({error:'Invalid submission type'},400);
+  const body=await req.json();const rawType=clean(body.type||body.form_type),type=types[rawType]||rawType;if(!['visitor_entry','visitor_exit','key_borrowing','key_return','package_registration'].includes(type))return json({error:'Invalid submission type'},400);const settings=await publicSettings();const ops=settings.operations||{};const enabledByType:Record<string,string>={visitor_entry:'visitor_entry_enabled',visitor_exit:'visitor_exit_enabled',key_borrowing:'key_borrowing_enabled',key_return:'key_return_enabled',package_registration:'package_registration_enabled'};if(enabledByType[type]&&ops[enabledByType[type]]===false)return json({error:'This service is currently disabled by Security Administration.'},403);
   const idem=clean(req.headers.get('idempotency-key')||body.idempotency_key);if(idem){const {data}=await supabase.from('submissions').select('submission_id').eq('idempotency_key',idem).maybeSingle();if(data)return json({ok:true,duplicate:true,submission_id:data.submission_id});}
   const name=clean(val(body,'name','visitor_name','nama','returnName','borrowerName','namaPengantar')),mobile=clean(val(body,'phone','mobile_phone','telepon')),company=clean(val(body,'company_name','company','perusahaan'));let visitorId:string|null=null;let matchedExitEntry:any=null;
   if(type==='visitor_entry'){
@@ -105,6 +111,6 @@ Deno.serve(async req=>{
   }else{
    const path=await uploadPackagePhoto(clean(body.foto||body.photo_data_url));const {error}=await supabase.from('package_registrations').insert({submission_id:submission.id,courier_name:clean(val(body,'courier_name','namaPengantar')),phone:mobile||null,phone_normalized:phone(mobile)||null,company_name:company,item_type:clean(val(body,'item_type','jenisBarang')).toUpperCase(),item_count:Number(body.item_count||body.number_of_items||body.jumlah||1),recipient_type:clean(val(body,'recipient_type','tujuan')).toUpperCase(),recipient_name:clean(val(body,'recipient_name','namaTujuan')),security_officer_name:clean(val(body,'security_officer_name','security')),photo_storage_path:path});if(error)throw error;
   }
-  await supabase.from('submissions').update({status:'completed'}).eq('id',submission.id);return json({ok:true,submission_id:submission.submission_id,...(keyReturnResult?{key_return:keyReturnResult}:{})});
+  await supabase.from('submissions').update({status:'completed'}).eq('id',submission.id);return json({ok:true,submission_id:submission.submission_id,whatsapp_number:settings.whatsapp?.phone_number||null,...(keyReturnResult?{key_return:keyReturnResult}:{})});
  }catch(e){console.error(e);return json({error:'Submission failed'},500)}
 });
