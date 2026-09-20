@@ -94,8 +94,11 @@
 
   function renderAuth() {
     const auth = document.querySelector('#pdAuth');
-    if (!auth) return;
+    const main = document.querySelector('#pdMain');
+    const notice = document.querySelector('#pdNotice');
+    if (!auth || !main) return;
     if (!authSession) {
+      auth.innerHTML = '';
       auth.innerHTML = `<div class="pd-auth"><h3>Security Authorization</h3><p>Sign in with an authorized HIKJ Security Admin account to distribute packages.</p>
         <input id="pdEmail" type="email" placeholder="Security Admin Email" autocomplete="username">
         <input id="pdPassword" type="password" placeholder="Password" autocomplete="current-password">
@@ -112,7 +115,8 @@
       };
       return;
     }
-    const main = document.querySelector('#pdMain');
+    auth.innerHTML = '';
+    if (notice) notice.textContent = '';
     main.classList.remove('hidden');
     main.innerHTML = `<div class="pd-user">Authorized: <b>${esc(authSession.user?.email)}</b><button id="pdSignOut" class="pd-link">Sign Out</button></div>
       <div class="pd-search"><input id="pdSearch" placeholder="Search package ID, recipient, courier, company..." autocomplete="off"><button class="submit" id="pdSearchBtn">SEARCH</button></div>
