@@ -45,7 +45,7 @@ const SUPABASE_URL=window.location.origin;
 const SUPABASE_PUBLISHABLE_KEY='sb_publishable_PnyJg3CYoApOX69rBw2RLQ_t_jAef27';
 const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
 const API=SUPABASE_URL+'/functions/v1/admin-console-api';
-async function profile(session){const r=await fetch(API+'?action=summary',{headers:{apikey:SUPABASE_PUBLISHABLE_KEY,Authorization:'Bearer '+session.access_token}});const j=await r.json();if(!r.ok)throw Error(j.error||'Unable to load admin profile');document.getElementById('userName').textContent=j.profile?.full_name||session.user.email;document.getElementById('userRole').textContent=j.profile?.role||'ADMIN'}
+async function profile(session){const r=await fetch(API+'?action=summary',{headers:{apikey:SUPABASE_PUBLISHABLE_KEY,Authorization:'Bearer '+session.access_token}});const j=await r.json();if(!r.ok)throw Error(j.error||'Unable to load admin profile');document.getElementById('userName').textContent=j.profile?.full_name||session.user.email;document.getElementById('userRole').textContent=j.profile?.role||'ADMIN';window.HIKJAdminRole=String(j.profile?.role||'').toUpperCase()}
 async function enter(session){await profile(session);document.getElementById('login').classList.add('hidden');document.getElementById('app').classList.remove('hidden');window.dispatchEvent(new CustomEvent('hikj-admin-ready',{detail:{session}}));if(window.HIKJAdminV2Build)window.HIKJAdminV2Build()}
 document.getElementById('loginForm').addEventListener('submit',async ev=>{ev.preventDefault();const b=document.getElementById('loginBtn'),err=document.getElementById('loginError');b.disabled=true;b.textContent='SIGNING IN…';err.textContent='';try{const {data,error}=await sb.auth.signInWithPassword({email:document.getElementById('email').value.trim(),password:document.getElementById('password').value});if(error)throw error;if(!data.session)throw Error('No authenticated session returned');await enter(data.session)}catch(e){err.textContent=e.message||String(e)}finally{b.disabled=false;b.textContent='SIGN IN'}});
 document.getElementById('logout').onclick=async()=>{await sb.auth.signOut();location.reload()};
@@ -53,4 +53,5 @@ sb.auth.getSession().then(({data:{session}})=>{if(session)enter(session).catch(e
 </script>
 <script src="admin-console-v2.js?v=17"></script>
 <script src="visitor-detail-popup.js?v=2"></script>
+<script src="settings.js?v=1"></script>
 </body></html>
