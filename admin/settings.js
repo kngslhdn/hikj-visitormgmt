@@ -32,7 +32,31 @@ async function keys(){
  $('sContent').innerHTML=card('Key Assets','Master inventory for physical hotel keys',`<div class="s-actions"><button class="s-btn primary" id="addKey">Add Key Asset</button></div><div class="s-table"><table><thead><tr><th>Key Number</th><th>Description</th><th>Location / Department</th><th>Quantity</th><th>Status</th><th>Actions</th></tr></thead><tbody>${rows.length?rows.map(x=>`<tr><td><b>${esc(x.key_number)}</b></td><td>${esc(x.key_description||'—')}</td><td>${esc(x.location_department||'—')}</td><td>${esc(x.quantity)}</td><td><span class="s-badge ${x.active?'s-on':'s-off'}">${x.active?'ACTIVE':'INACTIVE'}</span></td><td><button class="s-btn" data-key-edit="${x.id}">Edit</button></td></tr>`).join(''):'<tr><td colspan="6">No key assets configured.</td></tr>'}</tbody></table></div>`);
  $('addKey').onclick=()=>keyDialog();document.querySelectorAll('[data-key-edit]').forEach(b=>b.onclick=()=>keyDialog(rows.find(x=>x.id===b.dataset.keyEdit)));
 }
-function keyDialog(row=null){const d=document.createElement('dialog');d.style.cssText='border:0;border-radius:14px;padding:0;width:min(520px,calc(100% - 24px));box-shadow:0 25px 80px #0005';d.innerHTML=`<form method="dialog" class="s-body"><h2 style="margin:0 0 14px;color:#071a30;font-size:16px">${row?'Edit Key Asset':'Add Key Asset'}</h2><div class="s-grid"><div class="s-field"><label>Key Number</label><input id="kaNum" required value="${esc(row?.key_number||'')}" ${row?'readonly':''}></div><div class="s-field"><label>Quantity</label><input id="kaQty" type="number" min="1" required value="${esc(row?.quantity||1)}"></div><div class="s-field"><label>Description</label><input id="kaDesc" value="${esc(row?.key_description||'')}"></div><div class="s-field"><label>Location / Department</label><input id="kaLoc" value="${esc(row?.location_department||'')}"></div></div><div class="s-toggle" style="margin-top:12px"><label>Active</label><input id="kaActive" type="checkbox" ${row?.active!==false?'checked':''}></div><div class="s-actions"><button type="button" class="s-btn" id="kaCancel">Cancel</button><button type="button" class="s-btn primary" id="kaSave">Save</button></div><div class="s-msg" id="kaMsg"></div></form>`;document.body.appendChild(d);d.showModal();$('kaCancel').onclick=()=>d.close();$('kaSave').onclick=async()=>{try{await req(row?'update_key_asset':'create_key_asset','POST',{id:row?.id,key_number:$('kaNum').value.trim(),quantity:Number($('kaQty').value),key_description:$('kaDesc').value.trim(),location_department:$('kaLoc').value.trim(),active:$('kaActive').checked});d.close();await keys()}catch(e){msg('kaMsg',e.message,true)}}}
+function keyDialog(row=null){
+ const d=document.createElement('dialog');
+ d.style.cssText='border:0;border-radius:14px;padding:0;width:min(520px,calc(100% - 24px));box-shadow:0 25px 80px #0005';
+ d.innerHTML=`<form method="dialog" class="s-body"><h2 style="margin:0 0 14px;color:#071a30;font-size:16px">${row?'Edit Key Asset':'Add Key Asset'}</h2><div class="s-grid"><div class="s-field"><label>Key Number</label><input class="kaNum" required value="${esc(row?.key_number||'')}" ${row?'readonly':''}></div><div class="s-field"><label>Quantity</label><input class="kaQty" type="number" min="1" required value="${esc(row?.quantity||1)}"></div><div class="s-field"><label>Description</label><input class="kaDesc" value="${esc(row?.key_description||'')}"></div><div class="s-field"><label>Location / Department</label><input class="kaLoc" value="${esc(row?.location_department||'')}"></div></div><div class="s-toggle" style="margin-top:12px"><label>Active</label><input class="kaActive" type="checkbox" ${row?.active!==false?'checked':''}></div><div class="s-actions"><button type="button" class="s-btn kaCancel">Cancel</button><button type="button" class="s-btn primary kaSave">Save</button></div><div class="s-msg kaMsg"></div></form>`;
+ document.body.appendChild(d);
+ const num=d.querySelector('.kaNum'),qty=d.querySelector('.kaQty'),desc=d.querySelector('.kaDesc'),loc=d.querySelector('.kaLoc'),active=d.querySelector('.kaActive'),cancel=d.querySelector('.kaCancel'),save=d.querySelector('.kaSave'),message=d.querySelector('.kaMsg');
+ const cleanup=()=>d.remove();
+ d.addEventListener('close',cleanup,{once:true});
+ d.showModal();
+ cancel.onclick=()=>d.close();
+ save.onclick=async()=>{
+   save.disabled=true;cancel.disabled=true;save.textContent='Saving...';
+   try{
+     const body={id:row?.id,key_number:num.value.trim(),quantity:Number(qty.value),key_description:desc.value.trim(),location_department:loc.value.trim(),active:active.checked};
+     if(!body.key_number)throw Error('Key Number is required.');
+     if(!Number.isInteger(body.quantity)||body.quantity<1)throw Error('Quantity must be at least 1.');
+     await req(row?'update_key_asset':'create_key_asset','POST',body);
+     d.close();
+     await keys();
+   }catch(e){
+     message.textContent=e.message||'Request failed';message.classList.add('err');
+     save.disabled=false;cancel.disabled=false;save.textContent='Save';
+   }
+ }
+}
 async function operations(){
  const r=await req('settings');const o=r.settings?.operations||{};const fields=[['visitor_entry_enabled','Visitor Entry Registration'],['visitor_exit_enabled','Visitor Exit Registration'],['key_borrowing_enabled','Key Borrowing'],['key_return_enabled','Key Return'],['package_registration_enabled','Package Registration'],['package_distribution_enabled','Package Distribution']];
  $('sContent').innerHTML=card('System / Operations','Enable or disable operational modules',`<div style="display:grid;gap:8px">${fields.map(([k,l])=>`<div class="s-toggle"><label>${l}</label><input type="checkbox" data-op="${k}" ${o[k]!==false?'checked':''}></div>`).join('')}</div><div class="s-actions"><button class="s-btn primary" id="opSave">Save Changes</button></div><div class="s-msg" id="opMsg"></div>`);$('opSave').onclick=async()=>{try{const value={...o};fields.forEach(([k])=>value[k]=document.querySelector('[data-op="'+k+'"]').checked);await req('save_operations','POST',{value});msg('opMsg','Operational settings updated.')}catch(e){msg('opMsg',e.message,true)}}}
