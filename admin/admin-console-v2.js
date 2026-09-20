@@ -13,10 +13,20 @@ const css=` :root{--k-navy:#071a30;--k-navy-2:#102d4b;--k-gold:#c99a3d;--k-gold-
 .a-kicker{font-size:9px;letter-spacing:1.7px;color:#9a7a3b;font-weight:700}
 .a-head h1{font-size:25px;line-height:1.2;color:var(--k-navy);margin:5px 0 4px;font-weight:700}
 .a-head p{font-size:11px;color:var(--k-muted);margin:0}
-.a-btn{border:1px solid #d8dee5;background:#fff;color:var(--k-navy);border-radius:7px;padding:8px 12px;font-size:10px;font-weight:700;cursor:pointer;transition:background .15s ease,border-color .15s ease,box-shadow .15s ease}
-.a-btn:hover{border-color:#c9a45a;background:#fffdf8;box-shadow:0 2px 8px rgba(7,26,48,.06)}
-.a-btn.primary{background:var(--k-navy);border-color:var(--k-navy);color:#fff}
-.a-btn.primary:hover{background:#102d4b;border-color:#102d4b}
+.a-btn{border:1px solid #d8dee5;background:#fff;color:var(--k-navy);border-radius:8px;padding:8px 12px;font-size:10px;font-weight:700;cursor:pointer;transition:transform .14s ease,background .14s ease,border-color .14s ease,box-shadow .14s ease,color .14s ease;box-shadow:0 1px 2px rgba(7,26,48,.04)}
+.a-btn:hover{border-color:#c99a3d;background:#fffaf0;color:#071a30;transform:translateY(-1px);box-shadow:0 4px 12px rgba(7,26,48,.10)}
+.a-btn:active{transform:translateY(0);box-shadow:0 1px 3px rgba(7,26,48,.08)}
+.a-btn:focus-visible{outline:2px solid var(--k-gold);outline-offset:2px}
+.a-btn.primary{background:var(--k-navy);border-color:var(--k-navy);color:#fff;box-shadow:0 2px 5px rgba(7,26,48,.12)}
+.a-btn.primary:hover{background:#102d4b;border-color:#c99a3d;color:#fff;box-shadow:0 5px 14px rgba(7,26,48,.16)}
+.a-btn:disabled{opacity:.55;cursor:not-allowed;transform:none;box-shadow:none}
+.a-nav,.a-tabs button,.a-link{transition:transform .14s ease,background .14s ease,border-color .14s ease,box-shadow .14s ease,color .14s ease}
+.a-nav:hover{transform:translateX(2px);box-shadow:0 3px 9px rgba(7,26,48,.06)}
+.a-tabs button:hover{box-shadow:0 3px 9px rgba(7,26,48,.05);transform:translateY(-1px)}
+.a-link:hover{transform:translateX(1px)}
+.a-nav:focus-visible,.a-tabs button:focus-visible,.a-link:focus-visible{outline:2px solid var(--k-gold);outline-offset:2px}
+.a-nav:active,.a-tabs button:active,.a-link:active{transform:translateY(0)}
+.a-kpi:active,.a-op:active{transform:translateY(0)}
 .a-today{font-size:9px;color:#94a3b8;margin-bottom:13px}
 .a-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:15px}
 .a-kpi{position:relative;background:#fff;border:1px solid var(--k-line);border-radius:10px;padding:14px 15px;text-align:left;cursor:pointer;min-width:0;transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease}
