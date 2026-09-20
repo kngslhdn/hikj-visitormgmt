@@ -85,18 +85,22 @@ Deno.serve(async req=>{
         sb.from('package_registrations').select('id',{count:'exact',head:true}).gte('created_at',since.toISOString()),
         sb.from('currently_inside').select('entry_id',{count:'exact',head:true}),
         sb.from('outstanding_keys').select('borrowing_id,outstanding_quantity,status,discrepancy'),
+        sb.from('key_control_transactions').select('borrowing_id,outstanding_quantity,status,expected_return_at'),
         sb.from('submissions').select('id',{count:'exact',head:true}),
         sb.from('package_distributions').select('id',{count:'exact',head:true}),
         sb.from('package_distributions').select('id',{count:'exact',head:true}).gte('distributed_at',since.toISOString()),
         sb.from('package_registrations').select('id',{count:'exact',head:true})
       ]);
-      const errs=[v,e,x,b,r,p,inside,keys,sub,distAll,distToday,totalPackages].filter(x=>x.error);if(errs.length)throw errs[0].error;
+      const errs=[v,e,x,b,r,p,inside,keys,keyTransactions,sub,distAll,distToday,totalPackages].filter(x=>x.error);if(errs.length)throw errs[0].error;
       const outstandingRows=keys.data||[];
-      const outstandingQty=outstandingRows.reduce((n,row)=>n+Number(row.outstanding_quantity||0),0);
+      const transactionRows=keyTransactions.data||[];
+      const overdueRows=transactionRows.filter(row=>row.status==='OUTSTANDING');
+      const borrowedRows=transactionRows.filter(row=>row.status==='BORROWED');
+      const outstandingQty=overdueRows.reduce((n,row)=>n+Number(row.outstanding_quantity||0),0);
       const discrepancyKeys=outstandingRows.filter(row=>row.discrepancy).length;
-      const partialKeys=outstandingRows.filter(row=>row.status==='PARTIALLY RETURNED').length;
+      const partialKeys=transactionRows.filter(row=>Number(row.returned_quantity||0)>0&&Number(row.outstanding_quantity||0)>0).length;
       const ready=Math.max((totalPackages.count||0)-(distAll.count||0),0);
-      return json(req,{profile:auth.profile,summary:{total_visitors:v.count||0,today_entry:e.count||0,today_exit:x.count||0,currently_inside:inside.count||0,today_key_borrowing:b.count||0,today_key_return:r.count||0,today_packages:p.count||0,outstanding_keys:outstandingQty,outstanding_key_transactions:outstandingRows.length,discrepancy_keys:discrepancyKeys,partial_key_transactions:partialKeys,total_submissions:sub.count||0,total_packages:totalPackages.count||0,distributed_packages:distAll.count||0,distributed_packages_today:distToday.count||0,ready_packages:ready}});
+      return json(req,{profile:auth.profile,summary:{total_visitors:v.count||0,today_entry:e.count||0,today_exit:x.count||0,currently_inside:inside.count||0,today_key_borrowing:b.count||0,today_key_return:r.count||0,today_packages:p.count||0,outstanding_keys:outstandingQty,outstanding_key_transactions:overdueRows.length,borrowed_keys:borrowedRows.reduce((n,row)=>n+Number(row.outstanding_quantity||0),0),active_key_transactions:transactionRows.filter(row=>Number(row.outstanding_quantity||0)>0).length,discrepancy_keys:discrepancyKeys,partial_key_transactions:partialKeys,total_submissions:sub.count||0,total_packages:totalPackages.count||0,distributed_packages:distAll.count||0,distributed_packages_today:distToday.count||0,ready_packages:ready}});
     }
     if(action==='activity'){const n=limitOf(url.searchParams.get('limit'),100,500);const {data,error}=await sb.from('recent_activity').select('*').order('submitted_at',{ascending:false}).limit(n);if(error)throw error;return json(req,{data:data||[]})}
     if(action==='inside'){const n=limitOf(url.searchParams.get('limit'),500,1000);const {data,error}=await sb.from('currently_inside').select('*').order('entry_at',{ascending:false}).limit(n);if(error)throw error;return json(req,{data:data||[]})}
@@ -125,7 +129,7 @@ Deno.serve(async req=>{
       });
       if(status){
         tx=tx.filter((x:any)=>
-          status==='OUTSTANDING'?Number(x.outstanding_quantity)>0:
+          status==='OUTSTANDING'?String(x.status||'').toUpperCase()==='OUTSTANDING':
           status==='DISCREPANCY'?!!x.discrepancy:
           String(x.status||'').toUpperCase()===status
         );
@@ -145,7 +149,9 @@ Deno.serve(async req=>{
         issued_by_security:x.issued_by_security,
         security_officer_name:x.issued_by_security,
         last_returned_at:x.last_returned_at,
-                status:x.status,
+        expected_return_at:x.expected_return_at,
+        overdue_minutes:x.status==='OUTSTANDING'?Math.max(0,Math.floor((Date.now()-new Date(x.expected_return_at).getTime())/60000)):0,
+        status:x.status,
         discrepancy:!!x.discrepancy,
         return_events:(byId.get(x.borrowing_id)||[]).sort((a:any,b:any)=>new Date(b.returned_at).getTime()-new Date(a.returned_at).getTime())
       }));
