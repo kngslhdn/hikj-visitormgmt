@@ -44,7 +44,7 @@ Deno.serve(async req=>{
   if(type==='key_asset_lookup'){
    const key=clean(body.key_number||body.keyNumber);
    if(!key)return json({error:'Please enter Key Number.'},400);
-   const {data,error}=await supabase.from('key_assets').select('key_number,description,quantity,active').eq('key_number',key).maybeSingle();
+   const {data,error}=await supabase.from('key_assets').select('key_number,key_description,quantity,active').eq('key_number',key).maybeSingle();
    if(error)throw error;
    if(!data)return json({ok:false,error:`Key Number ${key} was not found in Key Assets.`},404);
    if(!data.active)return json({ok:false,error:`Key Number ${key} is inactive.`},409);
@@ -78,7 +78,7 @@ Deno.serve(async req=>{
   if(type==='key_borrowing'){
    const key=clean(body.key_number||body.keyNumber);
    if(!key)return json({error:'Please enter Key Number.'},400);
-   const {data:keyAsset,error:keyAssetError}=await supabase.from('key_assets').select('key_number,description,quantity,active').eq('key_number',key).maybeSingle();
+   const {data:keyAsset,error:keyAssetError}=await supabase.from('key_assets').select('key_number,key_description,quantity,active').eq('key_number',key).maybeSingle();
    if(keyAssetError)throw keyAssetError;
    if(!keyAsset)return json({ok:false,error:`Key Number ${key} was not found in Key Assets.`},404);
    if(!keyAsset.active)return json({ok:false,error:`Key Number ${key} is inactive.`},409);
@@ -99,7 +99,7 @@ Deno.serve(async req=>{
   }else if(type==='key_borrowing'){
    const key=clean(body.key_number||body.keyNumber);
    if(!key)return json({error:'Please enter Key Number.'},400);
-   const {data:keyAsset,error:keyAssetError}=await supabase.from('key_assets').select('key_number,description,quantity,active').eq('key_number',key).maybeSingle();
+   const {data:keyAsset,error:keyAssetError}=await supabase.from('key_assets').select('key_number,key_description,quantity,active').eq('key_number',key).maybeSingle();
    if(keyAssetError)throw keyAssetError;
    if(!keyAsset)return json({ok:false,error:`Key Number ${key} was not found in Key Assets.`},404);
    if(!keyAsset.active)return json({ok:false,error:`Key Number ${key} is inactive.`},409);
@@ -110,7 +110,7 @@ Deno.serve(async req=>{
    if(data)return json({ok:false,error:`Key ${key} is currently outstanding to ${data.borrower_name} with ${data.outstanding_quantity} key(s) outstanding. Please return the outstanding key(s) before a new borrowing.`},409);
    const borrowerName=clean(val(body,'borrower_name','borrowerName'));
    const department=clean(body.department);
-   const description=clean(keyAsset.description||'');
+   const description=clean(keyAsset.key_description||'');
    const officer=clean(val(body,'security_officer_name','security'));
    if(!borrowerName||!officer)return json({error:'Borrower Name and Issued By Security Officer are required.'},400);
    const borrowedAt=timestamp(body.borrowed_at||body.datetime);
