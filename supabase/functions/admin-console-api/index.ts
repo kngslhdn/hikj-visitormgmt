@@ -76,7 +76,7 @@ Deno.serve(async req=>{
     if(action==='summary'){
       const d=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Jakarta',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
       const since=new Date(d+'T00:00:00+07:00');
-      const [v,e,x,b,r,p,inside,keys,sub,distAll,distToday,totalPackages]=await Promise.all([
+      const [v,e,x,b,r,p,inside,keys,keyTransactions,sub,distAll,distToday,totalPackages]=await Promise.all([
         sb.from('visitors').select('id',{count:'exact',head:true}),
         sb.from('visitor_entries').select('id',{count:'exact',head:true}).gte('entry_at',since.toISOString()),
         sb.from('visitor_exits').select('id',{count:'exact',head:true}).gte('exit_at',since.toISOString()),
@@ -85,7 +85,7 @@ Deno.serve(async req=>{
         sb.from('package_registrations').select('id',{count:'exact',head:true}).gte('created_at',since.toISOString()),
         sb.from('currently_inside').select('entry_id',{count:'exact',head:true}),
         sb.from('outstanding_keys').select('borrowing_id,outstanding_quantity,status,discrepancy'),
-        sb.from('key_control_transactions').select('borrowing_id,outstanding_quantity,status,expected_return_at'),
+        sb.from('key_control_transactions').select('borrowing_id,outstanding_quantity,returned_quantity,status,expected_return_at'),
         sb.from('submissions').select('id',{count:'exact',head:true}),
         sb.from('package_distributions').select('id',{count:'exact',head:true}),
         sb.from('package_distributions').select('id',{count:'exact',head:true}).gte('distributed_at',since.toISOString()),
