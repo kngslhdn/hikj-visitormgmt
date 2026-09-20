@@ -69,10 +69,75 @@ async function getOverallRows(start:string,to:string|null){
 function summaryMetrics(rows:any[]){const count=(t:string)=>rows.filter(x=>x.record_type===t).length;return {total:rows.length,visitor_entry:count('visitor_entry'),visitor_exit:count('visitor_exit'),key_borrowing:count('key_borrowing'),key_return:count('key_return'),package_registration:count('package_registration'),package_distribution:count('package_distribution')}}
 function dailyAnalytics(rows:any[]){const m=new Map<string,number>();for(const x of rows){const d=String(x.event_at).slice(0,10);m.set(d,(m.get(d)||0)+1)}return [...m.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(([label,total])=>({label:label.slice(5),total}))}
 
+
+async function superAdmin(req:Request){
+  const a=await admin(req);
+  if(a.error)return a;
+  if(String(a.profile?.role||'').toUpperCase()!=='SUPERADMIN')return {error:json(req,{error:'Super Admin access required'},403)};
+  return a;
+}
+async function audit(a:any,action:string,module:string,target:string,description:string){
+  await sb.from('audit_logs').insert({user_id:a.user.id,user_name:a.profile?.full_name||a.user.email,action,module,target:target||null,description:description||null});
+}
+async function settingsData(){
+  const {data,error}=await sb.from('app_settings').select('setting_key,setting_value,active,updated_at').in('setting_key',['whatsapp','operations']);
+  if(error)throw error;
+  return Object.fromEntries((data||[]).map((x:any)=>[x.setting_key,x.setting_value]));
+}
+async function settingsAction(req:Request,a:any,action:string){
+  if(action==='settings'){return json(req,{settings:await settingsData()})}
+  if(action==='save_whatsapp'){
+    const b=await req.json(),phone=String(b.phone_number||'').replace(/[^0-9]/g,'');
+    if(!/^62[0-9]{8,15}$/.test(phone))return json(req,{error:'Invalid WhatsApp number'},400);
+    const {error}=await sb.from('app_settings').update({setting_value:{recipient_name:String(b.recipient_name||'HIKJ Security').trim(),phone_number:phone},updated_by:a.user.id}).eq('setting_key','whatsapp');
+    if(error)throw error;await audit(a,'UPDATE','WhatsApp','whatsapp',`Changed recipient number to ${phone}`);return json(req,{ok:true});
+  }
+  if(action==='save_operations'){
+    const b=await req.json(),value=b.value||{};const {error}=await sb.from('app_settings').update({setting_value:value,updated_by:a.user.id}).eq('setting_key','operations');
+    if(error)throw error;await audit(a,'UPDATE','System / Operations','operations','Updated operational module settings');return json(req,{ok:true});
+  }
+  if(action==='admin_users'){
+    const {data,error}=await sb.from('admin_profiles').select('user_id,full_name,role,active,created_at,updated_at').order('created_at');
+    if(error)throw error;const users=await sb.auth.admin.listUsers({page:1,perPage:1000});if(users.error)throw users.error;const map=new Map((users.data.users||[]).map((u:any)=>[u.id,u]));
+    return json(req,{data:(data||[]).map((x:any)=>{const u=map.get(x.user_id);return {...x,email:u?.email||null,last_sign_in_at:u?.last_sign_in_at||null}})});
+  }
+  if(action==='create_admin'){
+    const b=await req.json(),email=String(b.email||'').trim().toLowerCase(),password=String(b.password||''),name=String(b.full_name||'').trim(),role=String(b.role||'VIEWER').toUpperCase();
+    if(!email||!name||password.length<8)return json(req,{error:'Name, email and a password of at least 8 characters are required.'},400);
+    if(!['VIEWER','ADMIN','MANAGER','SUPERADMIN'].includes(role))return json(req,{error:'Invalid role'},400);
+    const created=await sb.auth.admin.createUser({email,password,email_confirm:true,user_metadata:{full_name:name}});
+    if(created.error)throw created.error;
+    const {error}=await sb.from('admin_profiles').insert({user_id:created.data.user.id,full_name:name,role,active:true});
+    if(error){await sb.auth.admin.deleteUser(created.data.user.id);throw error}
+    await audit(a,'CREATE','Admin Users',email,`Created ${role} admin account`);return json(req,{ok:true,user_id:created.data.user.id});
+  }
+  if(action==='update_admin'){
+    const b=await req.json(),id=String(b.user_id||''),name=String(b.full_name||'').trim(),role=String(b.role||'VIEWER').toUpperCase(),password=String(b.password||'');
+    if(!id||!name||!['VIEWER','ADMIN','MANAGER','SUPERADMIN'].includes(role))return json(req,{error:'Invalid admin update'},400);
+    const {error}=await sb.from('admin_profiles').update({full_name:name,role,active:b.active!==false}).eq('user_id',id);if(error)throw error;
+    if(password){if(password.length<8)return json(req,{error:'Password must be at least 8 characters.'},400);const u=await sb.auth.admin.updateUserById(id,{password});if(u.error)throw u.error}
+    await audit(a,'UPDATE','Admin Users',id,`Updated admin account role to ${role}`);return json(req,{ok:true});
+  }
+  if(action==='key_assets'){
+    const {data,error}=await sb.from('key_assets').select('*').order('key_number');if(error)throw error;return json(req,{data});
+  }
+  if(action==='create_key_asset'||action==='update_key_asset'){
+    const b=await req.json(),key=String(b.key_number||'').trim();const quantity=Number(b.quantity||0);
+    if(!key||!Number.isInteger(quantity)||quantity<1)return json(req,{error:'Key number and a positive quantity are required.'},400);
+    if(action==='create_key_asset'){const {error}=await sb.from('key_assets').insert({key_number:key,key_description:String(b.key_description||'').trim()||null,location_department:String(b.location_department||'').trim()||null,quantity,active:b.active!==false});if(error)throw error;await audit(a,'CREATE','Key Assets',key,'Created key asset');}
+    else{const id=String(b.id||'');const {error}=await sb.from('key_assets').update({key_description:String(b.key_description||'').trim()||null,location_department:String(b.location_department||'').trim()||null,quantity,active:b.active!==false}).eq('id',id);if(error)throw error;await audit(a,'UPDATE','Key Assets',id,'Updated key asset');}
+    return json(req,{ok:true});
+  }
+  if(action==='audit_logs'){
+    const {data,error}=await sb.from('audit_logs').select('*').order('created_at',{ascending:false}).limit(500);if(error)throw error;return json(req,{data});
+  }
+  return null;
+}
+
 Deno.serve(async req=>{
-  if(req.method==='OPTIONS')return new Response(null,{status:204,headers:headers(req)});if(req.method!=='GET')return json(req,{error:'Method not allowed'},405);
+  if(req.method==='OPTIONS')return new Response(null,{status:204,headers:headers(req)});if(!['GET','POST'].includes(req.method))return json(req,{error:'Method not allowed'},405);
   try{
-    const auth=await admin(req);if(auth.error)return auth.error;const url=new URL(req.url),action=url.searchParams.get('action')||'summary';
+    const auth=await admin(req);if(auth.error)return auth.error;const url=new URL(req.url),action=url.searchParams.get('action')||'summary';if(req.method==='POST'){const sa=await superAdmin(req);if(sa.error)return sa.error;const r=await settingsAction(req,sa,action);if(r)return r;return json(req,{error:'Unknown action'},400);}
     if(action==='summary'){
       const d=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Jakarta',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
       const since=new Date(d+'T00:00:00+07:00');
