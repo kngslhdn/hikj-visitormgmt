@@ -13,4 +13,5 @@ function show(r){modal();const v=r.visitor||{},x=r.exit||null;const status=x?'EX
 async function open(row){if(loading)return;loading=true;row.classList.add('vd-loading');try{show(await getRecord(row))}catch(e){alert(e.message||String(e))}finally{loading=false;row.classList.remove('vd-loading')}}
 document.addEventListener('click',e=>{const row=e.target.closest('#vrows tr');if(!row||row.querySelector('.a-empty'))return;open(row)});
 document.addEventListener('keydown',e=>{if(e.key==='Enter'){const input=e.target.closest?.('.a-filters input');if(input){e.preventDefault();const box=input.closest('.a-filters');const btn=box?.querySelector('.a-btn.primary');if(btn){btn.click();return}}}if(e.key!=='Enter'&&e.key!==' ')return;const row=e.target.closest?.('#vrows tr');if(!row||row.querySelector('.a-empty'))return;e.preventDefault();open(row)});
+css();
 })();
