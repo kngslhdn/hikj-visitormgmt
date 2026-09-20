@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>HIKJ Visitor Management | Security Admin</title>
+<title>Visitor Management | Security Admin</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{--navy:#071a30;--navy2:#102d4b;--gold:#c99a3d;--bg:#f4f6f9;--card:#fff;--line:#e5e7eb;--muted:#64748b;--text:#111827;--red:#b91c1c}
@@ -16,12 +16,12 @@
 </head>
 <body>
 <section id="login" class="login"><div class="login-card">
-<img class="logo" src="https://upload.wikimedia.org/wikipedia/commons/6/60/Hotel_Indonesia_Kempinski_Jakarta_logo.svg" alt="Hotel Indonesia Kempinski Jakarta">
-<div class="brand">HIKJ Visitor Management<small>SECURITY ADMINISTRATION CONSOLE</small></div>
+<img class="logo" src="../assets/hikj-logo.svg" alt="Hotel Indonesia Kempinski Jakarta">
+<div class="brand">Visitor Management<small>SECURITY ADMINISTRATION CONSOLE</small></div>
 <h1>Admin Sign In</h1><p>Authorized HIKJ Security administrators only</p>
 <form id="loginForm"><div class="field"><label>Email</label><input id="email" type="email" autocomplete="username" required></div><div class="field"><label>Password</label><input id="password" type="password" autocomplete="current-password" required></div><button id="loginBtn" class="login-btn" type="submit">SIGN IN</button><a class="back-form" href="../">← Back to Form</a><div id="loginError" class="error"></div></form>
 </div></section>
-<section id="app" class="hidden"><header class="top"><div class="top-title">HIKJ Visitor Management<small>SECURITY ADMIN CONSOLE V2</small></div><div class="user"><div class="user-info"><b id="userName">Admin</b><small id="userRole">—</small></div><button id="logout" class="logout">Sign Out</button></div></header><div id="v2Boot" class="v2-loading">Loading Security Admin Console…</div></section>
+<section id="app" class="hidden"><header class="top"><div class="top-title">Visitor Management<small>SECURITY ADMIN CONSOLE V2</small></div><div class="user"><div class="user-info"><b id="userName">Admin</b><small id="userRole">—</small></div><button id="logout" class="logout">Sign Out</button></div></header><div id="v2Boot" class="v2-loading">Loading Security Admin Console…</div></section>
 <script>
 const SUPABASE_URL=window.location.origin;
 const SUPABASE_PUBLISHABLE_KEY='sb_publishable_PnyJg3CYoApOX69rBw2RLQ_t_jAef27';
