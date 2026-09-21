@@ -143,19 +143,19 @@ async function lookupKeyAsset(keyNumber,form,notice){
  if(description)description.value='';
  if(qty)qty.value='';
  if(form)form.dataset.keyAssetValid='false';
- if(!key){if(notice)notice.textContent='Enter a Key Number to load Key Description and Quantity.';return}
- if(notice){notice.textContent='Checking Key Asset…';notice.classList.remove('error')}
+ if(!key){if(notice)notice.textContent=DEVICE_LANG==='id'?'Masukkan Nomor Kunci untuk memuat Deskripsi Kunci dan Jumlah.':'Enter a Key Number to load Key Description and Quantity.';return}
+ if(notice){notice.textContent=DEVICE_LANG==='id'?'Memeriksa aset kunci…':'Checking Key Asset…';notice.classList.remove('error')}
  const requestId=++keyAssetLookupSeq;
  try{
   const r=await fetch(SUPABASE_FUNCTION_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'key_asset_lookup',key_number:key})});
   let result=null;try{result=await r.json()}catch{}
   if(requestId!==keyAssetLookupSeq)return;
-  if(!r.ok||!result?.ok)throw Error(result?.error||'Key Number could not be verified.');
+  if(!r.ok||!result?.ok)throw Error(result?.error||DEVICE_LANG==='id'?'Nomor Kunci tidak dapat diverifikasi.':'Key Number could not be verified.');
   const asset=result.key_asset||{};
   if(description)description.value=asset.description||'';
   if(qty)qty.value=asset.quantity??'';
   if(form)form.dataset.keyAssetValid='true';
-  if(notice){notice.textContent='Key Asset verified. Description and Quantity are loaded from Key Assets.';notice.classList.remove('error')}
+  if(notice){notice.textContent=DEVICE_LANG==='id'?'Aset kunci terverifikasi. Deskripsi dan jumlah dimuat dari Key Assets.':'Key Asset verified. Description and Quantity are loaded from Key Assets.';notice.classList.remove('error')}
  }catch(err){
   if(requestId!==keyAssetLookupSeq)return;
   if(form)form.dataset.keyAssetValid='false';
@@ -189,18 +189,18 @@ function wireKeyBorrowingLookup(form){
  });
 }
 function showForm(key){const form=forms[key];document.querySelectorAll('.choice').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.form===key)));panel.innerHTML=`<div class="panel-header"><h2>${form.title}</h2><p>${form.description}</p></div><form id="activeForm" novalidate>${form.fields.map(inputMarkup).join('')}<button class="submit" type="submit">${L.submit}</button></form><div class="notice" id="notice"></div>`;panel.classList.add('visible');panel.scrollIntoView({behavior:'smooth',block:'start'});const activeForm=panel.querySelector('form');activeForm.addEventListener('submit',e=>submitForm(e,key));if(key==='pinjamKunci')wireKeyBorrowingLookup(activeForm)}
-async function submitForm(e,key){e.preventDefault();const form=forms[key],el=e.currentTarget,notice=panel.querySelector('#notice');if(!el.reportValidity())return;if(key==='pinjamKunci'&&el.dataset.keyAssetValid!=='true'){notice.textContent='Please enter a valid active Key Number and wait for Key Description and Quantity to load.';notice.classList.add('error');return;}const btn=el.querySelector('.submit');btn.disabled=true;notice.textContent='Submitting…';notice.classList.remove('error');const data=new FormData(el);
+async function submitForm(e,key){e.preventDefault();const form=forms[key],el=e.currentTarget,notice=panel.querySelector('#notice');if(!el.reportValidity())return;if(key==='pinjamKunci'&&el.dataset.keyAssetValid!=='true'){notice.textContent=DEVICE_LANG==='id'?'Masukkan Nomor Kunci aktif yang valid dan tunggu Deskripsi Kunci serta Jumlah dimuat.':'Please enter a valid active Key Number and wait for Key Description and Quantity to load.';notice.classList.add('error');return;}const btn=el.querySelector('.submit');btn.disabled=true;notice.textContent=DEVICE_LANG==='id'?'Mengirim…':'Submitting…';notice.classList.remove('error');const data=new FormData(el);
 if(key==='kembaliKunci'){
   const confirmed=window.confirm(
-    'CONFIRM KEY RETURN\n\n'+
+    (DEVICE_LANG==='id'?'KONFIRMASI PENGEMBALIAN KUNCI\n\n':'CONFIRM KEY RETURN\n\n')+
     'Key Number: '+(data.get('keyNumber')||'—')+'\n'+
-    'Returned By: '+(data.get('returnName')||'—')+'\n'+
-    'Department: '+(data.get('department')||'—')+'\n'+
-    'Quantity Returning: '+(data.get('qty')||'—')+'\n'+
-    'Received By Security: '+(data.get('security')||'—')+'\n\n'+
-    'Please verify the quantity before confirming.'
+    (DEVICE_LANG==='id'?'Dikembalikan Oleh: ':'Returned By: ')+(data.get('returnName')||'—')+'\n'+
+    (DEVICE_LANG==='id'?'Departemen: ':'Department: ')+(data.get('department')||'—')+'\n'+
+    (DEVICE_LANG==='id'?'Jumlah Dikembalikan: ':'Quantity Returning: ')+(data.get('qty')||'—')+'\n'+
+    (DEVICE_LANG==='id'?'Diterima Oleh Petugas Keamanan: ':'Received By Security: ')+(data.get('security')||'—')+'\n\n'+
+    (DEVICE_LANG==='id'?'Mohon periksa jumlah kunci sebelum melakukan konfirmasi.':'Please verify the quantity before confirming.')
   );
-  if(!confirmed){btn.disabled=false;notice.textContent='Return cancelled.';return}
+  if(!confirmed){btn.disabled=false;notice.textContent=DEVICE_LANG==='id'?'Pengembalian dibatalkan.':'Return cancelled.';return}
 }
 let waWindow=null;try{waWindow=window.open('about:blank','_blank');const result=await submitToSupabase(form,data);showSuccess(key,data,result,waWindow)}catch(err){if(waWindow&&!waWindow.closed)waWindow.close();const message=err?.message||'The form could not be submitted. Please try again.';notice.textContent=message;notice.classList.add('error');btn.disabled=false;if(key==='keluar'&&/Visitor not found/i.test(message)){window.alert('⚠️ WARNING\n\nNama atau Pass / Vest Number tidak ditemukan pada visitor yang masih berada di dalam hotel.\n\nSilakan periksa kembali data Exit Registration.');}else{window.alert(`⚠️ WARNING\n\n${message}`);}}}
 </script>
