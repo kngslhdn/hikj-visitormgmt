@@ -1,7 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const ALLOWED_ORIGINS=new Set(['https://kngslhdn.github.io','http://localhost:3000','http://127.0.0.1:5500']);
-const headers=(req:Request)=>{const origin=req.headers.get('Origin')||'';return {'Access-Control-Allow-Origin':ALLOWED_ORIGINS.has(origin)?origin:'https://kngslhdn.github.io','Access-Control-Allow-Headers':'authorization, x-client-info, apikey, content-type','Access-Control-Allow-Methods':'GET,OPTIONS','Vary':'Origin','Content-Type':'application/json'}};
+const ALLOWED_ORIGINS=new Set(['https://kngslhdn.github.io','http://192.168.236.132','https://visitor.myhikj.com','http://visitor.myhikj.com','http://localhost:3000','http://127.0.0.1:5500']);
+const headers=(req:Request)=>{const origin=req.headers.get('Origin')||'';return {'Access-Control-Allow-Origin':ALLOWED_ORIGINS.has(origin)?origin:'https://kngslhdn.github.io','Access-Control-Allow-Headers':'authorization, x-client-info, apikey, content-type','Access-Control-Allow-Methods':'GET,POST,OPTIONS','Vary':'Origin','Content-Type':'application/json'}};
 const json=(req:Request,b:unknown,s=200)=>new Response(JSON.stringify(b),{status:s,headers:headers(req)});
 const sb=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 const limitOf=(v:string|null,d=100,m=5000)=>Math.max(1,Math.min(Number(v||d)||d,m));
@@ -148,9 +148,9 @@ Deno.serve(async req=>{
         sb.from('key_borrowings').select('id',{count:'exact',head:true}).gte('borrowed_at',since.toISOString()),
         sb.from('key_returns').select('id',{count:'exact',head:true}).gte('returned_at',since.toISOString()),
         sb.from('package_registrations').select('id',{count:'exact',head:true}).gte('created_at',since.toISOString()),
-        sb.from('currently_inside').select('entry_id',{count:'exact',head:true}),
+        sb.from('currently_inside').select('entry_id,entry_at',{count:'exact'}),
         sb.from('outstanding_keys').select('borrowing_id,outstanding_quantity,status,discrepancy'),
-        sb.from('key_control_transactions').select('borrowing_id,outstanding_quantity,returned_quantity,status,expected_return_at'),
+        sb.from('key_control_transactions').select('borrowing_id,outstanding_quantity,returned_quantity,status,expected_return_at,discrepancy'),
         sb.from('submissions').select('id',{count:'exact',head:true}),
         sb.from('package_distributions').select('id',{count:'exact',head:true}),
         sb.from('package_distributions').select('id',{count:'exact',head:true}).gte('distributed_at',since.toISOString()),
@@ -159,13 +159,16 @@ Deno.serve(async req=>{
       const errs=[v,e,x,b,r,p,inside,keys,keyTransactions,sub,distAll,distToday,totalPackages].filter(x=>x.error);if(errs.length)throw errs[0].error;
       const outstandingRows=keys.data||[];
       const transactionRows=keyTransactions.data||[];
+      const insideRows=inside.data||[];
+      const overstayCutoff=Date.now()-24*60*60*1000;
+      const overstayVisitors=insideRows.filter((row:any)=>row.entry_at&&new Date(row.entry_at).getTime()<=overstayCutoff);
       const overdueRows=transactionRows.filter(row=>row.status==='OUTSTANDING');
       const borrowedRows=transactionRows.filter(row=>row.status==='BORROWED');
       const outstandingQty=overdueRows.reduce((n,row)=>n+Number(row.outstanding_quantity||0),0);
-      const discrepancyKeys=outstandingRows.filter(row=>row.discrepancy).length;
+      const discrepancyKeys=transactionRows.filter(row=>!!row.discrepancy).length;
       const partialKeys=transactionRows.filter(row=>Number(row.returned_quantity||0)>0&&Number(row.outstanding_quantity||0)>0).length;
       const ready=Math.max((totalPackages.count||0)-(distAll.count||0),0);
-      return json(req,{profile:auth.profile,summary:{total_visitors:v.count||0,today_entry:e.count||0,today_exit:x.count||0,currently_inside:inside.count||0,today_key_borrowing:b.count||0,today_key_return:r.count||0,today_packages:p.count||0,outstanding_keys:outstandingQty,outstanding_key_transactions:overdueRows.length,borrowed_keys:borrowedRows.reduce((n,row)=>n+Number(row.outstanding_quantity||0),0),active_key_transactions:transactionRows.filter(row=>Number(row.outstanding_quantity||0)>0).length,discrepancy_keys:discrepancyKeys,partial_key_transactions:partialKeys,total_submissions:sub.count||0,total_packages:totalPackages.count||0,distributed_packages:distAll.count||0,distributed_packages_today:distToday.count||0,ready_packages:ready}});
+      return json(req,{profile:auth.profile,summary:{total_visitors:v.count||0,today_entry:e.count||0,today_exit:x.count||0,currently_inside:inside.count||0,visitor_overstay:overstayVisitors.length,today_key_borrowing:b.count||0,today_key_return:r.count||0,today_packages:p.count||0,outstanding_keys:outstandingQty,outstanding_key_transactions:overdueRows.length,borrowed_keys:borrowedRows.reduce((n,row)=>n+Number(row.outstanding_quantity||0),0),active_key_transactions:transactionRows.filter(row=>Number(row.outstanding_quantity||0)>0).length,discrepancy_keys:discrepancyKeys,partial_key_transactions:partialKeys,total_submissions:sub.count||0,total_packages:totalPackages.count||0,distributed_packages:distAll.count||0,distributed_packages_today:distToday.count||0,ready_packages:ready}});
     }
     if(action==='activity'){const n=limitOf(url.searchParams.get('limit'),100,500);const {data,error}=await sb.from('recent_activity').select('*').order('submitted_at',{ascending:false}).limit(n);if(error)throw error;return json(req,{data:data||[]})}
     if(action==='inside'){const n=limitOf(url.searchParams.get('limit'),500,1000);const {data,error}=await sb.from('currently_inside').select('*').order('entry_at',{ascending:false}).limit(n);if(error)throw error;return json(req,{data:data||[]})}
