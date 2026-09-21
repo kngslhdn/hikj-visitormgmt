@@ -1,5 +1,5 @@
 (()=>{
-const U='https://hmqgmusellcetakoalva.supabase.co',K='sb_publishable_PnyJg3CYoApOX69rBw2RLQ_t_jAef27',API=U+'/functions/v1/admin-console-api';let s=null;
+const U='https://hmqgmusellcetakoalva.supabase.co',K='sb_publishable_J6P-baCAZOoVxj2rHBZMkA_Ux4U5_mQ',API=U+'/functions/v1/admin-console-api';let s=null;
 const $=id=>document.getElementById(id),esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c])),fmt=v=>v?new Date(v).toLocaleString('en-GB',{dateStyle:'short',timeStyle:'short'}):'—',today=()=>new Date().toISOString().slice(0,10),overdueText=m=>{m=Number(m||0);if(m<60)return m+'m overdue';const d=Math.floor(m/1440),h=Math.floor((m%1440)/60),mm=m%60;return (d?d+'d ':'')+(h?h+'h ':'')+(mm?mm+'m ':'')+'overdue'};
 const css=` :root{--k-navy:#071a30;--k-navy-2:#102d4b;--k-gold:#c99a3d;--k-gold-soft:#f8f1e3;--k-bg:#f5f6f8;--k-card:#fff;--k-line:#e4e7eb;--k-line-soft:#edf0f2;--k-muted:#64748b;--k-text:#18212b;--k-success:#166534;--k-success-bg:#ecfdf5;--k-warn:#92400e;--k-warn-bg:#fff7df;--k-blue:#075985}
 .a-layout{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:calc(100vh - 70px);background:var(--k-bg)}
