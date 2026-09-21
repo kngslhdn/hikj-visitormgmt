@@ -42,7 +42,7 @@
 <section id="app" class="hidden"><header class="top"><div class="top-title">Visitor Management<small>SECURITY ADMIN CONSOLE V2</small></div><img class="top-logo" src="../assets/hikj-logo.svg" alt="Hotel Indonesia Kempinski Jakarta"><div class="user"><div class="user-info"><b id="userName">Admin</b><small id="userRole">—</small></div><button id="logout" class="logout">Sign Out</button></div></header><div id="v2Boot" class="v2-loading">Loading Security Admin Console…</div></section>
 <script>
 const SUPABASE_URL='https://hmqgmusellcetakoalva.supabase.co';
-const SUPABASE_PUBLISHABLE_KEY='sb_publishable_PnyJg3CYoApOX69rBw2RLQ_t_jAef27';
+const SUPABASE_PUBLISHABLE_KEY='sb_publishable_J6P-baCAZOoVxj2rHBZMkA_Ux4U5_mQ';
 const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
 const API=SUPABASE_URL+'/functions/v1/admin-console-api';
 async function profile(session){const r=await fetch(API+'?action=summary',{headers:{apikey:SUPABASE_PUBLISHABLE_KEY,Authorization:'Bearer '+session.access_token}});const j=await r.json();if(!r.ok)throw Error(j.error||'Unable to load admin profile');document.getElementById('userName').textContent=j.profile?.full_name||session.user.email;document.getElementById('userRole').textContent=j.profile?.role||'ADMIN';window.HIKJAdminRole=String(j.profile?.role||'').toUpperCase()}
