@@ -135,12 +135,12 @@
   async function searchPackages() {
     const results = document.querySelector('#pdResults');
     if (!results) return;
-    results.innerHTML = '<div class="pd-empty">${PDT('Searching…','Mencari…')}</div>';
+    results.innerHTML = `<div class="pd-empty">${PDT('Searching…','Mencari…')}</div>`;
     try {
       const q = encodeURIComponent(document.querySelector('#pdSearch')?.value.trim() || '');
       const response = await callApi(`?q=${q}&limit=50`);
       const items = Array.isArray(response?.data) ? response.data : (Array.isArray(response?.packages) ? response.packages : []);
-      if (!items.length) { results.innerHTML = '<div class="pd-empty">${PDT(PDT('${PDT('No package available for distribution.','Tidak ada paket yang tersedia untuk didistribusikan.')}','Tidak ada paket yang tersedia untuk didistribusikan.'),'Tidak ada paket yang tersedia untuk didistribusikan.')}</div>'; return; }
+      if (!items.length) { results.innerHTML = `<div class="pd-empty">${PDT('No package available for distribution.','Tidak ada paket yang tersedia untuk didistribusikan.')}</div>`; return; }
       results.innerHTML = items.map((p, i) => `<button class="pd-result" data-pd-index="${i}">
         <div><b>${esc(p.submission_id || p.package_number)}</b><span>${esc(p.recipient_name || '—')} · ${esc(p.company_name || '—')}</span></div>
         <div><span>${esc(PD_VALUE(p.item_type))} · Qty ${esc(p.item_count ?? '—')}</span><span>${esc(p.courier_name || '—')} · ${fmt(p.created_at)}</span></div>
@@ -179,10 +179,10 @@
     const recipient = document.querySelector('#pdRecipient')?.value.trim();
     const note = document.querySelector('#pdNote')?.value.trim() || '';
     const notice = document.querySelector('#pdNotice');
-    if (!recipient) { notice.textContent = '${PDT('Please enter Recipient / Representative Name.','Silakan masukkan Nama Penerima / Perwakilan.')}'; return; }
-    if (!security) { notice.textContent = '${PDT('Please enter Security Hand Over.','Silakan masukkan Nama Petugas Security.')}'; return; }
+    if (!recipient) { notice.textContent = PDT('Please enter Recipient / Representative Name.','Silakan masukkan Nama Penerima / Perwakilan.'); return; }
+    if (!security) { notice.textContent = PDT('Please enter Security Hand Over.','Silakan masukkan Nama Petugas Security.'); return; }
     const btn = document.querySelector('#pdSubmit');
-    btn.disabled = true; notice.textContent = '${PDT('Processing distribution…','Memproses distribusi…')}';
+    btn.disabled = true; notice.textContent = PDT('Processing distribution…','Memproses distribusi…');
     try {
       const data = await callApi('', { method:'POST', body: JSON.stringify({ package_registration_id: selected.id, recipient_name: recipient, security_hand_over: security, note }) });
       notice.textContent = '';
