@@ -72,5 +72,80 @@ sb.auth.getSession().then(({data:{session}})=>{if(session)enter(session).catch(e
 }
 </style>
 <script src="visitor-detail-popup.js?v=2"></script>
-<script src="settings.js?v=1"></script>
+<script src="settings.js?v=1"></script><style id="mobile-header-fix">
+@media (max-width:760px){
+  .top{
+    height:72px;
+    min-height:72px;
+    padding:0 12px;
+    gap:8px;
+    position:sticky;
+  }
+  .top-logo{
+    display:none;
+  }
+  .top-title{
+    position:static;
+    flex:1 1 auto;
+    min-width:0;
+    font-size:13px;
+    line-height:1.15;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .top-title small{
+    font-size:7px;
+    letter-spacing:.8px;
+    margin-top:4px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .user{
+    flex:0 0 auto;
+    gap:6px;
+    min-width:0;
+  }
+  .user-info{
+    max-width:72px;
+    font-size:9px;
+    line-height:1.15;
+    overflow:hidden;
+  }
+  .user-info b{
+    display:block;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .user-info small{
+    display:none;
+  }
+  .logout{
+    padding:7px 9px;
+    border-radius:7px;
+    font-size:9px;
+    white-space:nowrap;
+  }
+}
+@media (max-width:380px){
+  .top{
+    padding:0 9px;
+  }
+  .top-title{
+    font-size:12px;
+  }
+  .top-title small{
+    font-size:6.5px;
+  }
+  .user-info{
+    max-width:58px;
+  }
+  .logout{
+    padding:7px 8px;
+    font-size:8px;
+  }
+}
+</style>
 </body></html>
