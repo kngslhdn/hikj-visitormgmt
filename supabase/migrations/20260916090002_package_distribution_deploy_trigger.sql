@@ -1,2 +1,0 @@
--- Trigger deployment workflow for Package Distribution.
--- No schema change; feature migration is 20260916090000_package_distribution.sql.

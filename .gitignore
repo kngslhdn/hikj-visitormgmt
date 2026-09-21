@@ -1,3 +1,9 @@
 
 # Local server backups - never commit secrets
 backups/
+
+# Supabase local CLI temporary files
+supabase/.temp/
+
+# Archived pre-baseline migrations
+supabase/migrations_archive_20260921/
