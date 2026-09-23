@@ -7,3 +7,8 @@ supabase/.temp/
 
 # Archived pre-baseline migrations
 supabase/migrations_archive_20260921/
+# Environment files - never commit credentials or local secrets
+.env
+.env.*
+!.env.example
+!.env.template
