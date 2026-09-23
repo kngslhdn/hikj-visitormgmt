@@ -114,18 +114,20 @@ async function selectedGroups(groupIds: string[]) {
 async function resolveRecipients(groupIds: string[], contactIds: string[]) {
   const groups = await selectedGroups(groupIds);
   const ids = new Set(contactIds);
+  let memberships: Array<{group_id:string;contact_id:string}> = [];
 
   if (groupIds.length) {
     const { data, error } = await admin
       .from("emergency_group_members")
-      .select("group_id,contact_id,emergency_contacts(*)")
+      .select("group_id,contact_id")
       .in("group_id", groupIds);
     if (error) throw error;
-    for (const row of data || []) ids.add(row.contact_id);
+    memberships = (data || []).map((row:any) => ({group_id:row.group_id,contact_id:row.contact_id}));
+    for (const row of memberships) ids.add(row.contact_id);
   }
 
   const allIds = [...ids];
-  if (!allIds.length) return { groups, contacts: [] };
+  if (!allIds.length) return { groups, contacts: [], memberships };
 
   const { data: contacts, error } = await admin
     .from("emergency_contacts")
@@ -136,7 +138,7 @@ async function resolveRecipients(groupIds: string[], contactIds: string[]) {
   if ((contacts || []).length !== allIds.length) {
     throw new Error("One or more selected emergency contacts are inactive or unavailable.");
   }
-  return { groups, contacts: contacts || [] };
+  return { groups, contacts: contacts || [], memberships };
 }
 
 async function sendEmail(recipients: string[], incident: any, cfg: any) {
@@ -320,7 +322,15 @@ Deno.serve(async (req) => {
 
       if (resource === "members") {
         if (!d.group_id) throw new Error("group_id is required.");
+        const group = await admin.from("emergency_contact_groups").select("id").eq("id", d.group_id).eq("active", true).maybeSingle();
+        if (group.error) throw group.error;
+        if (!group.data) throw new Error("Selected group is inactive or unavailable.");
         const contactIds = Array.isArray(d.contact_ids) ? [...new Set(d.contact_ids)] : [];
+        if (contactIds.length) {
+          const valid = await admin.from("emergency_contacts").select("id").in("id", contactIds).eq("active", true);
+          if (valid.error) throw valid.error;
+          if ((valid.data || []).length !== contactIds.length) throw new Error("One or more selected contacts are inactive or unavailable.");
+        }
         const del = await admin.from("emergency_group_members").delete().eq("group_id", d.group_id);
         if (del.error) throw del.error;
         if (contactIds.length) {
@@ -456,7 +466,7 @@ Deno.serve(async (req) => {
         throw new Error("Title, message and at least one recipient group/contact are required.");
       }
 
-      const { groups, contacts } = await resolveRecipients(groupIds, directContactIds);
+      const { groups, contacts, memberships } = await resolveRecipients(groupIds, directContactIds);
       const whatsappGroups = groups.filter((g: any) => g.whatsapp_group_url);
       const smtp = await smtpSettings();
       const systemSettings = await settingsMap();
@@ -484,8 +494,8 @@ Deno.serve(async (req) => {
 
       const recipientRows: any[] = [];
       for (const contact of contacts) {
-        const matchingGroup = groups.find((g: any) => groupIds.includes(g.id));
-        recipientRows.push({ incident_id: incident.id, contact_id: contact.id, group_id: matchingGroup?.id || null });
+        const matchingGroup = memberships.find((m:any) => m.contact_id === contact.id);
+        recipientRows.push({ incident_id: incident.id, contact_id: contact.id, group_id: matchingGroup?.group_id || null });
       }
       let recips: any[] = [];
       if (recipientRows.length) {
@@ -509,14 +519,16 @@ Deno.serve(async (req) => {
         : { status: "PENDING", error: "No email recipients configured." };
 
       if (uniqueEmails.length) {
-        const { data: n } = await admin.from("emergency_notifications").insert({
-          incident_id: incident.id,
-          recipient_id: recips.find((r: any) => r.emergency_contacts?.email)?.id || null,
-          channel: "EMAIL",
-          status: emailResult.status,
-          error_message: emailResult.error || null,
-          sent_at: emailResult.status === "SENT" ? new Date().toISOString() : null,
-        }).select().single();
+        for (const r of recips.filter((r:any) => r.emergency_contacts?.email)) {
+          await admin.from("emergency_notifications").insert({
+            incident_id: incident.id,
+            recipient_id: r.id,
+            channel: "EMAIL",
+            status: emailResult.status,
+            error_message: emailResult.error || null,
+            sent_at: emailResult.status === "SENT" ? new Date().toISOString() : null,
+          });
+        }
       }
 
       for (const g of groups) {
