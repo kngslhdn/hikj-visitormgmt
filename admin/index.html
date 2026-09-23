@@ -39,7 +39,7 @@
 <h1>Admin Sign In</h1><p>Authorized HIKJ Security administrators only</p>
 <form id="loginForm"><div class="field"><label>Email</label><input id="email" type="email" autocomplete="username" required></div><div class="field"><label>Password</label><input id="password" type="password" autocomplete="current-password" required></div><button id="loginBtn" class="login-btn" type="submit">SIGN IN</button><a class="back-form" href="../">← Back to Form</a><div id="loginError" class="error"></div></form>
 </div></section>
-<section id="app" class="hidden"><header class="top"><div class="top-title">Visitor Management<small>SECURITY ADMIN CONSOLE V2</small></div><img class="top-logo" src="../assets/hikj-logo.svg" alt="Hotel Indonesia Kempinski Jakarta"><div class="user"><div class="user-info"><b id="userName">Admin</b><small id="userRole">—</small></div><button id="logout" class="logout">Sign Out</button></div></header><div id="v2Boot" class="v2-loading">Loading Security Admin Console…</div></section>
+<section id="app" class="hidden"><header class="top"><div class="top-title">Visitor Management<small>SECURITY ADMIN CONSOLE V2</small></div><img class="top-logo" src="../assets/hikj-logo.svg" alt="Hotel Indonesia Kempinski Jakarta"><div class="user"><div class="user-info"><b id="userName">Admin</b><small id="userRole">—</small></div><a href="../emergency/" class="logout" style="text-decoration:none;background:#991b1b;border-color:#ef4444">Emergency</a><button id="logout" class="logout">Sign Out</button></div></header><div id="v2Boot" class="v2-loading">Loading Security Admin Console…</div></section>
 <script>
 const SUPABASE_URL='https://hmqgmusellcetakoalva.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY='sb_publishable_J6P-baCAZOoVxj2rHBZMkA_Ux4U5_mQ';
