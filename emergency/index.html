@@ -63,14 +63,11 @@ async function enter(s){
     const me=await api('me');
     $('userName').textContent=me.profile?.full_name||s.user.email;
     $('userRole').textContent=me.profile?.role||'ADMIN';
-    $('login').classList.add('hidden');
-    $('app').classList.remove('hidden');
     await boot();
   }catch(e){
-    console.error('Emergency session validation failed',e);
-    session=null;
-    $('loginMessage').textContent='Your Admin Console session could not be validated for Emergency Response.';
-    $('loginErr').textContent=e.message||'Please open Admin Console and sign in again.';
+    console.error('Emergency session/bootstrap failed',e);
+    $('sendNotice').textContent=e.message||'Emergency data could not be loaded.';
+    $('sendNotice').classList.add('err');
   }
 }
 async function bootstrapSession(){
