@@ -330,21 +330,64 @@ Deno.serve(async (req) => {
 
       if (resource === "contact") {
         if (!d.full_name) throw new Error("Contact name is required.");
+
+        const email = String(d.email || "").trim().toLowerCase() || null;
+        const whatsapp = String(d.whatsapp_number || "").replace(/[^0-9]+/g, "") || null;
+        const phone = String(d.phone_number || "").trim() || null;
+
+        const duplicateErrors: string[] = [];
+
+        if (email) {
+          let q = admin.from("emergency_contacts").select("id").eq("email", email).limit(1);
+          if (d.id) q = q.neq("id", d.id);
+          const r = await q.maybeSingle();
+          if (r.error) throw r.error;
+          if (r.data) duplicateErrors.push("Email address is already registered.");
+        }
+
+        if (whatsapp) {
+          const all = await admin.from("emergency_contacts").select("id,whatsapp_number");
+          if (all.error) throw all.error;
+          const duplicate = (all.data || []).some((row:any) =>
+            row.id !== d.id &&
+            String(row.whatsapp_number || "").replace(/[^0-9]+/g, "") === whatsapp
+          );
+          if (duplicate) duplicateErrors.push("WhatsApp number is already registered.");
+        }
+
+        if (duplicateErrors.length) {
+          throw new Error(duplicateErrors.join(" "));
+        }
+
         const payload = {
           full_name: String(d.full_name).trim(),
           position: d.position || null,
           department: d.department || null,
-          phone_number: d.phone_number || null,
-          email: d.email || null,
-          whatsapp_number: d.whatsapp_number || null,
+          phone_number: phone,
+          email,
+          whatsapp_number: whatsapp,
           priority: Number(d.priority ?? 100),
           active: d.active !== false,
         };
+
         const q = d.id
           ? admin.from("emergency_contacts").update(payload).eq("id", d.id).select().single()
           : admin.from("emergency_contacts").insert(payload).select().single();
         const r = await q;
-        if (r.error) throw r.error;
+
+        if (r.error) {
+          if (r.error.code === "23505") {
+            const message = String(r.error.message || "");
+            if (message.includes("emergency_contacts_email_unique_idx")) {
+              throw new Error("Email address is already registered.");
+            }
+            if (message.includes("emergency_contacts_whatsapp_unique_idx")) {
+              throw new Error("WhatsApp number is already registered.");
+            }
+          }
+          throw r.error;
+        }
+
         await audit(user, profile, d.id ? "UPDATE" : "CREATE", payload.full_name, "Updated emergency contact.");
         return json({ ok: true, row: r.data });
       }
