@@ -21,11 +21,6 @@ main{max-width:1240px;margin:24px auto;padding:0 18px}.hero{display:flex;justify
 </style>
 </head>
 <body>
-<section id="login" class="login"><div class="card">
-<h1>Emergency Response</h1><p id="loginMessage">Checking your HIKJ Admin Console session…</p>
-<div class="actions"><a class="btn primary" href="../admin/" style="display:block;text-align:center;text-decoration:none;width:100%">OPEN ADMIN CONSOLE</a></div>
-<div class="notice err" id="loginErr"></div>
-</div></section>
 <section id="app">
 <header class="top"><div class="brand">HIKJ EMERGENCY RESPONSE<small>EMERGENCY NOTIFICATION SYSTEM</small></div><div style="display:flex;gap:8px;align-items:center"><div class="user"><b id="userName">—</b><br><span id="userRole">—</span></div><a href="../admin/">Visitor Admin</a><button id="logout">Sign Out</button></div></header>
 <main>
@@ -58,7 +53,7 @@ main{max-width:1240px;margin:24px auto;padding:0 18px}.hero{display:flex;justify
 <div class="modal" id="modal"><div class="modalbox"><div class="head" style="padding:0 0 12px;border:0"><h2 id="mTitle">Incident</h2><button class="btn" id="mClose">Close</button></div><div id="mBody"></div></div></div>
 <script>
 const U='https://hmqgmusellcetakoalva.supabase.co',K='sb_publishable_J6P-baCAZOoVxj2rHBZMkA_Ux4U5_mQ';
-const sb=window.supabase.createClient(U,K),API=U+'/functions/v1/emergency-api';
+const sb=window.supabase.createClient(U,K,{auth:{persistSession:true,autoRefreshToken:true,storageKey:'sb-hmqgmusellcetakoalva-auth-token'}}),API=U+'/functions/v1/emergency-api';
 const $=id=>document.getElementById(id), esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
 let session=null, types=[], templates=[], contacts=[], groups=[], productionReady=false, lastWhatsAppDispatches=[];
 async function api(action,method='GET',body=null){const actionQuery=action.includes('&')?action:encodeURIComponent(action);const r=await fetch(API+'?action='+actionQuery,{method,headers:{apikey:K,Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});const j=await r.json().catch(()=>({}));if(!r.ok)throw Error(j.error||'Request failed');return j}
@@ -79,17 +74,23 @@ async function enter(s){
   }
 }
 async function bootstrapSession(){
-  const {data,error}=await sb.auth.getSession();
-  if(error) throw error;
-  if(data.session){ await enter(data.session); return; }
-  $('loginMessage').textContent='No active Admin Console session found. Please sign in to Admin Console first.';
+  try{
+    const {data,error}=await sb.auth.getSession();
+    if(error) throw error;
+    if(!data.session){
+      location.href='../admin/';
+      return;
+    }
+    await enter(data.session);
+  }catch(e){
+    console.error('Emergency bootstrap failed',e);
+    location.href='../admin/';
+  }
 }
 sb.auth.onAuthStateChange((event,newSession)=>{
   if(event==='SIGNED_OUT'){
     session=null;
-    $('app').classList.add('hidden');
-    $('login').classList.remove('hidden');
-    $('loginMessage').textContent='Your Admin Console session has ended. Please sign in again.';
+    location.href='../admin/';
     return;
   }
   if(newSession && ['INITIAL_SESSION','SIGNED_IN','TOKEN_REFRESHED'].includes(event)){
@@ -97,11 +98,7 @@ sb.auth.onAuthStateChange((event,newSession)=>{
   }
 });
 $('logout').onclick=async()=>{await sb.auth.signOut();location.href='../admin/'};
-bootstrapSession().catch(e=>{
-  console.error(e);
-  $('loginMessage').textContent='Unable to read the Admin Console session.';
-  $('loginErr').textContent=e.message||String(e);
-});
+bootstrapSession();
 async function boot(){const r=await api('bootstrap');types=r.types||[];templates=r.templates||[];contacts=r.contacts||[];groups=r.groups||[];productionReady=Boolean(r.production_ready);renderTypes();renderTemplates();renderGroups();renderRecipients();applyProviderState();await refresh();}
 function renderTypes(){$('type').innerHTML='<option value="">Select</option>'+types.map(x=>'<option value="'+x.id+'">'+esc(x.name)+'</option>').join('')}
 function renderTemplates(){$('template').innerHTML='<option value="">Custom message</option>'+templates.map(x=>'<option value="'+x.id+'">'+esc(x.name)+'</option>').join('')}
