@@ -122,7 +122,7 @@
     if (notice) notice.textContent = '';
     main.classList.remove('hidden');
     main.innerHTML = `<div class="pd-user">${PDT('Authorized:','Terotorisasi:')} <b>${esc(authSession.user?.email)}</b><button id="pdSignOut" class="pd-link">${PDT('Sign Out','Keluar')}</button></div>
-      <div class="pd-search"><input id="pdSearch" placeholder="${PDT('Search package ID, recipient, courier, company..','Cari ID paket, penerima, kurir, perusahaan..')}" autocomplete="off"><button class="submit" id="pdSearchBtn">${PDT('SEARCH','CARI')}</button></div>
+      <div class="pd-search"><input id="pdSearch" placeholder="${PDT('Search package ID, recipient, courier, company','Cari ID paket, penerima, kurir, perusahaan')}" autocomplete="off"><button class="submit" id="pdSearchBtn">${PDT('SEARCH','CARI')}</button></div>
       <div id="pdResults" class="pd-results"><div class="pd-empty">${PDT(PDT('Enter a keyword or press SEARCH to find registered packages','Masukkan kata kunci atau tekan CARI untuk mencari paket terdaftar'),'Masukkan kata kunci atau tekan CARI untuk mencari paket terdaftar')}</div></div><div id="pdSelected"></div>`;
     document.querySelector('#pdSignOut').onclick = async () => { await client.auth.signOut(); authSession = null; renderAuth(); };
     const search = document.querySelector('#pdSearch');
