@@ -96,8 +96,7 @@ async function audit(user: any, profile: any, action: string, target: string, de
     description,
   });
 }
-}
-
+ 
 async function selectedGroups(groupIds: string[]) {
   if (!groupIds.length) return [];
   const { data, error } = await admin
