@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.package-distribution]
 verify_jwt = false
+
+[functions.emergency-api]
+verify_jwt = true
