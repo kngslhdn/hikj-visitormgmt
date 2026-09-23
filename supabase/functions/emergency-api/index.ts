@@ -89,7 +89,7 @@ async function smtpSettings() {
   } catch (_) {
     // Fall back to Edge Function secrets for backward compatibility.
   }
-  const user = s.smtp_username ?? vaultUser ?? Deno.env.get("SMTP_USER") ?? "";
+  const user = vaultUser || Deno.env.get("SMTP_USER") || "";
   const pass = vaultPass || Deno.env.get("SMTP_PASS") || "";
   return {
     host, port, secure, from, fromName, replyTo, user, pass,
