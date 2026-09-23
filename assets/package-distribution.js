@@ -16,7 +16,7 @@
       const s = document.createElement('script');
       s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
       s.onload = () => resolve();
-      s.onerror = () => reject(new Error(PDT('Unable to load authentication library.','Gagal memuat library autentikasi.')));
+      s.onerror = () => reject(new Error(PDT('Unable to load authentication library','Gagal memuat library autentikasi')));
       document.head.appendChild(s);
     });
   }
@@ -68,7 +68,7 @@
   async function initClient() {
     await loadSupabase();
     const key = getPublishableKey();
-    if (!key) throw new Error(PDT('Supabase publishable key is not available.','Supabase publishable key tidak tersedia.'));
+    if (!key) throw new Error(PDT('Supabase publishable key is not available','Supabase publishable key tidak tersedia'));
     client = window.supabase.createClient(SUPABASE_URL, key);
     const { data } = await client.auth.getSession();
     authSession = data?.session || null;
@@ -76,11 +76,11 @@
   }
 
   async function callApi(path, options = {}) {
-    if (!authSession?.access_token) throw new Error(PDT('Please sign in as an authorized Security Admin first.','Silakan masuk sebagai Admin Security yang berwenang terlebih dahulu.'));
+    if (!authSession?.access_token) throw new Error(PDT('Please sign in as an authorized Security Admin first','Silakan masuk sebagai Admin Security yang berwenang terlebih dahulu'));
     const headers = { 'apikey': getPublishableKey(), 'Authorization': `Bearer ${authSession.access_token}`, 'Content-Type': 'application/json' };
     const r = await fetch(`${FUNCTION_URL}${path}`, { ...options, headers: { ...headers, ...(options.headers || {}) } });
     const body = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(body.error || PDT('Unable to complete package distribution. Please try again.','Distribusi paket gagal. Silakan coba lagi.'));
+    if (!r.ok) throw new Error(body.error || PDT('Unable to complete package distribution. Please try again','Distribusi paket gagal. Silakan coba lagi'));
     return body;
   }
 
@@ -90,7 +90,7 @@
     document.querySelectorAll('.choice[data-form]').forEach(x => x.setAttribute('aria-pressed','false'));
     document.querySelector('[data-distribution-card]')?.setAttribute('aria-pressed','true');
     panel.classList.add('visible');
-    panel.innerHTML = `<div class="panel-header"><h2>${PDT('Package Distribution','Distribusi Paket')}</h2><p>${PDT('Search a registered package and complete the hand-over process.','Cari paket yang telah terdaftar dan selesaikan proses serah terima.')}</p></div>
+    panel.innerHTML = `<div class="panel-header"><h2>${PDT('Package Distribution','Distribusi Paket')}</h2><p>${PDT('Search a registered package and complete the hand-over process','Cari paket yang telah terdaftar dan selesaikan proses serah terima')}</p></div>
       <div class="pd-wrap"><div id="pdAuth"></div><div id="pdMain" class="hidden"></div><div id="pdNotice" class="pd-notice"></div></div>`;
     renderAuth();
   }
@@ -102,7 +102,7 @@
     if (!auth || !main) return;
     if (!authSession) {
       auth.innerHTML = '';
-      auth.innerHTML = `<div class="pd-auth"><h3>${PDT('Security Authorization','Otorisasi Keamanan')}</h3><p>${PDT('Sign in with an authorized HIKJ Security Admin account to distribute packages.','Masuk dengan akun Admin Security HIKJ yang berwenang untuk mendistribusikan paket.')}</p>
+      auth.innerHTML = `<div class="pd-auth"><h3>${PDT('Security Authorization','Otorisasi Keamanan')}</h3><p>${PDT('Sign in with an authorized HIKJ Security Admin account to distribute packages','Masuk dengan akun Admin Security HIKJ yang berwenang untuk mendistribusikan paket')}</p>
         <input id="pdEmail" type="email" placeholder="${PDT('Security Admin Email','Email Admin Security')}" autocomplete="username">
         <input id="pdPassword" type="password" placeholder="Password" autocomplete="current-password">
         <button class="submit" id="pdLogin">${PDT('SIGN IN TO DISTRIBUTE','MASUK UNTUK DISTRIBUSI')}</button></div>`;
@@ -114,7 +114,7 @@
           if (error) throw error;
           authSession = data.session;
           renderAuth();
-        } catch (e) { notice.textContent = e.message || PDT('Unable to sign in.','Gagal masuk.'); }
+        } catch (e) { notice.textContent = e.message || PDT('Unable to sign in','Gagal masuk.'); }
       };
       return;
     }
@@ -122,8 +122,8 @@
     if (notice) notice.textContent = '';
     main.classList.remove('hidden');
     main.innerHTML = `<div class="pd-user">${PDT('Authorized:','Terotorisasi:')} <b>${esc(authSession.user?.email)}</b><button id="pdSignOut" class="pd-link">${PDT('Sign Out','Keluar')}</button></div>
-      <div class="pd-search"><input id="pdSearch" placeholder="${PDT('Search package ID, recipient, courier, company...','Cari ID paket, penerima, kurir, perusahaan...')}" autocomplete="off"><button class="submit" id="pdSearchBtn">${PDT('SEARCH','CARI')}</button></div>
-      <div id="pdResults" class="pd-results"><div class="pd-empty">${PDT(PDT('Enter a keyword or press SEARCH to find registered packages.','Masukkan kata kunci atau tekan CARI untuk mencari paket terdaftar.'),'Masukkan kata kunci atau tekan CARI untuk mencari paket terdaftar.')}</div></div><div id="pdSelected"></div>`;
+      <div class="pd-search"><input id="pdSearch" placeholder="${PDT('Search package ID, recipient, courier, company..','Cari ID paket, penerima, kurir, perusahaan..')}" autocomplete="off"><button class="submit" id="pdSearchBtn">${PDT('SEARCH','CARI')}</button></div>
+      <div id="pdResults" class="pd-results"><div class="pd-empty">${PDT(PDT('Enter a keyword or press SEARCH to find registered packages','Masukkan kata kunci atau tekan CARI untuk mencari paket terdaftar'),'Masukkan kata kunci atau tekan CARI untuk mencari paket terdaftar')}</div></div><div id="pdSelected"></div>`;
     document.querySelector('#pdSignOut').onclick = async () => { await client.auth.signOut(); authSession = null; renderAuth(); };
     const search = document.querySelector('#pdSearch');
     document.querySelector('#pdSearchBtn').onclick = searchPackages;
@@ -140,7 +140,7 @@
       const q = encodeURIComponent(document.querySelector('#pdSearch')?.value.trim() || '');
       const response = await callApi(`?q=${q}&limit=50`);
       const items = Array.isArray(response?.data) ? response.data : (Array.isArray(response?.packages) ? response.packages : []);
-      if (!items.length) { results.innerHTML = `<div class="pd-empty">${PDT('No package available for distribution.','Tidak ada paket yang tersedia untuk didistribusikan.')}</div>`; return; }
+      if (!items.length) { results.innerHTML = `<div class="pd-empty">${PDT('No package available for distribution','Tidak ada paket yang tersedia untuk didistribusikan')}</div>`; return; }
       results.innerHTML = items.map((p, i) => `<button class="pd-result" data-pd-index="${i}">
         <div><b>${esc(p.submission_id || p.package_number)}</b><span>${esc(p.recipient_name || '—')} · ${esc(p.company_name || '—')}</span></div>
         <div><span>${esc(PD_VALUE(p.item_type))} · Qty ${esc(p.item_count ?? '—')}</span><span>${esc(p.courier_name || '—')} · ${fmt(p.created_at)}</span></div>
@@ -165,9 +165,9 @@
     target.innerHTML = `<div class="pd-selected"><div class="pd-selected-head"><b>${PDT('Package Hand-Over','Serah Terima Paket')}</b><span>${PDT('DISTRIBUTION','DISTRIBUSI')}</span></div>
       <div class="pd-detail"><div><small>${PDT('Package ID','ID Paket')}</small><b>${esc(selected.submission_id || selected.package_number)}</b></div><div><small>${PDT('Registered Recipient','Penerima Terdaftar')}</small><b>${esc(selected.recipient_name || '—')}</b></div></div>
       <label>${PDT('Package Owner / Recipient Name','Nama Pemilik / Penerima Paket')}</label><input id="pdRecipient" value="${esc(selected.recipient_name || '')}" placeholder="${PDT('Recipient / Representative Name','Nama Penerima / Perwakilan')}" autocomplete="off">
-      <small class="pd-hint">${PDT('Defaulted to the registered recipient. Edit if the package is received by a representative or delegate.','Secara default menggunakan penerima terdaftar. Ubah jika paket diterima oleh perwakilan atau delegasi.')}</small>
+      <small class="pd-hint">${PDT('Defaulted to the registered recipient. Edit if the package is received by a representative or delegate','Secara default menggunakan penerima terdaftar. Ubah jika paket diterima oleh perwakilan atau delegasi')}</small>
       <label>${PDT('Note','Catatan')}</label><textarea id="pdNote" placeholder="${PDT('Department, pigeon hole, or other note','Departemen, pigeon hole, atau catatan lainnya')}" rows="2"></textarea>
-      <small class="pd-hint">${PDT('Add the department, pigeon hole location, or other information to help identify the recipient.','Tambahkan departemen, lokasi pigeon hole, atau informasi lain untuk membantu mengidentifikasi penerima.')}</small>
+      <small class="pd-hint">${PDT('Add the department, pigeon hole location, or other information to help identify the recipient','Tambahkan departemen, lokasi pigeon hole, atau informasi lain untuk membantu mengidentifikasi penerima')}</small>
       <label>${PDT('Security Hand Over *','Serah Terima Security *')}</label><input id="pdSecurity" placeholder="${PDT('Enter Security Hand Over','Masukkan Nama Petugas Security')}" required>
       <label>${PDT('Distribution Date &amp; Time','Tanggal &amp; Waktu Distribusi')}</label><input value="${fmt(new Date())}" readonly>
       <button class="submit" id="pdSubmit">${PDT('SUBMIT DISTRIBUTION','KIRIM DISTRIBUSI')}</button></div>`;
@@ -179,17 +179,17 @@
     const recipient = document.querySelector('#pdRecipient')?.value.trim();
     const note = document.querySelector('#pdNote')?.value.trim() || '';
     const notice = document.querySelector('#pdNotice');
-    if (!recipient) { notice.textContent = PDT('Please enter Recipient / Representative Name.','Silakan masukkan Nama Penerima / Perwakilan.'); return; }
-    if (!security) { notice.textContent = PDT('Please enter Security Hand Over.','Silakan masukkan Nama Petugas Security.'); return; }
+    if (!recipient) { notice.textContent = PDT('Please enter Recipient / Representative Name','Silakan masukkan Nama Penerima / Perwakilan'); return; }
+    if (!security) { notice.textContent = PDT('Please enter Security Hand Over','Silakan masukkan Nama Petugas Security'); return; }
     const btn = document.querySelector('#pdSubmit');
     btn.disabled = true; notice.textContent = PDT('Processing distribution…','Memproses distribusi…');
     try {
       const data = await callApi('', { method:'POST', body: JSON.stringify({ package_registration_id: selected.id, recipient_name: recipient, security_hand_over: security, note }) });
       notice.textContent = '';
-      document.querySelector('#pdSelected').innerHTML = `<div class="pd-success"><h3>${PDT('Package successfully distributed.','Paket berhasil didistribusikan.')}</h3><p><b>${PDT('Distribution ID:','ID Distribusi:')}</b> ${esc(data.distribution.distribution_number||'—')}</p><p><b>${PDT('Package ID:','ID Paket:')}</b> ${esc(data.distribution.package_number)}</p><p><b>${PDT('Recipient:','Penerima:')}</b> ${esc(data.distribution.recipient_name)}</p><p><b>${PDT('Note:','Catatan:')}</b> ${esc(data.distribution.note || '—')}</p><p><b>${PDT('Security Hand Over:','Serah Terima Security:')}</b> ${esc(data.distribution.security_hand_over)}</p><p><b>${PDT('Distribution Date &amp; Time:','Tanggal &amp; Waktu Distribusi:')}</b> ${fmt(data.distribution.distributed_at)}</p><button class="submit" id="pdBack">${PDT('SEARCH ANOTHER PACKAGE','CARI PAKET LAIN')}</button></div>`;
+      document.querySelector('#pdSelected').innerHTML = `<div class="pd-success"><h3>${PDT('Package successfully distributed','Paket berhasil didistribusikan')}</h3><p><b>${PDT('Distribution ID:','ID Distribusi:')}</b> ${esc(data.distribution.distribution_number||'—')}</p><p><b>${PDT('Package ID:','ID Paket:')}</b> ${esc(data.distribution.package_number)}</p><p><b>${PDT('Recipient:','Penerima:')}</b> ${esc(data.distribution.recipient_name)}</p><p><b>${PDT('Note:','Catatan:')}</b> ${esc(data.distribution.note || '—')}</p><p><b>${PDT('Security Hand Over:','Serah Terima Security:')}</b> ${esc(data.distribution.security_hand_over)}</p><p><b>${PDT('Distribution Date &amp; Time:','Tanggal &amp; Waktu Distribusi:')}</b> ${fmt(data.distribution.distributed_at)}</p><button class="submit" id="pdBack">${PDT('SEARCH ANOTHER PACKAGE','CARI PAKET LAIN')}</button></div>`;
       document.querySelector('#pdBack').onclick = () => { selected = null; renderAuth(); };
     } catch (e) {
-      notice.textContent = e.message || PDT('Unable to complete package distribution. Please try again.','Distribusi paket gagal. Silakan coba lagi.');
+      notice.textContent = e.message || PDT('Unable to complete package distribution. Please try again','Distribusi paket gagal. Silakan coba lagi');
       btn.disabled = false;
     }
   }
