@@ -235,7 +235,7 @@ if(key==='kembaliKunci'){
   );
   if(!confirmed){btn.disabled=false;notice.textContent=DEVICE_LANG==='id'?'Pengembalian dibatalkan':'Return cancelled';return}
 }
-let waWindow=null;try{waWindow=window.open('about:blank','_blank');const result=await submitToSupabase(form,data);showSuccess(key,data,result,waWindow)}catch(err){if(waWindow&&!waWindow.closed)waWindow.close();const message=err?.message||'The form could not be submitted. Please try again';notice.textContent=message;notice.classList.add('error');btn.disabled=false;if(key==='keluar'&&/Visitor not found/i.test(message)){window.alert('⚠️ WARNING\n\nNama atau Pass / Vest Number tidak ditemukan pada visitor yang masih berada di dalam hotel.\n\nSilakan periksa kembali data Exit Registration.');}else{window.alert(`⚠️ WARNING\n\n${message}`);}}}
+let waWindow=null;try{waWindow=window.open('about:blank','_blank');const result=await submitToSupabase(form,data);showSuccess(key,data,result,waWindow)}catch(err){if(waWindow&&!waWindow.closed)waWindow.close();const message=err?.message||'The form could not be submitted. Please try again';notice.textContent=message;notice.classList.add('error');btn.disabled=false;if(key==='keluar'&&/Visitor not found/i.test(message)){window.alert('⚠️ WARNING\n\nNama atau Pass / Vest Number tidak ditemukan pada visitor yang masih berada di dalam hotel\n\nSilakan periksa kembali data Exit Registration');}else{window.alert(`⚠️ WARNING\n\n${message}`);}}}
 </script>
 <script>window.HIKJ_SUPABASE_PUBLISHABLE_KEY='sb_publishable_PnyJg3CYoApOX69rBw2RLQ_t_jAef27';</script>
 <script src="assets/package-distribution.js"></script>
