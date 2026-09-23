@@ -413,6 +413,34 @@ Deno.serve(async (req) => {
         return json({ ok: true });
       }
 
+      if (resource === "settings_bulk") {
+        const allowed = new Set([
+          "default_severity","default_incident_type_code","default_location","timezone","incident_id_prefix",
+          "production_enabled","require_production_confirmation","require_recipient_selection",
+          "notification_retry_count","acknowledgement_timeout_minutes","auto_refresh_seconds","retention_days"
+        ]);
+        if (!Array.isArray(d.settings) || !d.settings.length) {
+          throw new Error("At least one system setting is required.");
+        }
+        const rows = d.settings.map((item:any) => {
+          if (!item || !allowed.has(item.setting_key)) {
+            throw new Error("Unsupported system setting.");
+          }
+          return {
+            setting_key: item.setting_key,
+            setting_value: item.setting_value,
+            description: item.description || null,
+            active: true,
+            updated_by: user.id,
+            updated_at: new Date().toISOString(),
+          };
+        });
+        const r = await admin.from("emergency_settings").upsert(rows, { onConflict: "setting_key" }).select();
+        if (r.error) throw r.error;
+        await audit(user, profile, "UPDATE", "SYSTEM_SETTINGS", "Updated " + rows.length + " emergency system settings.");
+        return json({ ok: true, rows: r.data || [] });
+      }
+
       if (resource === "setting") {
         const allowed = new Set([
           "default_severity","default_incident_type_code","default_location","timezone","incident_id_prefix",
@@ -494,15 +522,25 @@ Deno.serve(async (req) => {
       if (!id) throw new Error("incident_id required");
       const [i, n, up] = await Promise.all([
         admin.from("emergency_incidents").select("*,emergency_incident_types(name)").eq("id", id).single(),
-        admin.from("emergency_notifications").select("*,emergency_incident_recipients(contact_id,emergency_contacts(full_name)),emergency_contact_groups(name)").eq("incident_id", id).order("queued_at"),
+        admin.from("emergency_notifications").select("id,incident_id,recipient_id,group_id,channel,status,error_message,queued_at,sent_at,delivered_at,acknowledged_at,emergency_incident_recipients(contact_id,emergency_contacts(full_name)),emergency_contact_groups(name)").eq("incident_id", id).order("queued_at"),
         admin.from("emergency_incident_updates").select("*").eq("incident_id", id).order("created_at", { ascending: true }),
       ]);
+      if (i.error) throw i.error;
+      if (n.error) throw n.error;
+      if (up.error) throw up.error;
+
       const notifications = (n.data || []).map((x: any) => ({
         id: x.id,
         channel: x.channel,
         status: x.status,
-        name: x.emergency_contact_groups?.name || x.emergency_incident_recipients?.emergency_contacts?.full_name || "Group",
+        name: x.emergency_contact_groups?.name
+          || x.emergency_incident_recipients?.emergency_contacts?.full_name
+          || "Recipient",
         error_message: x.error_message || null,
+        queued_at: x.queued_at,
+        sent_at: x.sent_at,
+        delivered_at: x.delivered_at,
+        acknowledged_at: x.acknowledged_at,
       }));
       return json({ incident: i.data, notifications, updates: up.data || [] });
     }
@@ -531,17 +569,30 @@ Deno.serve(async (req) => {
     }
 
     if (action === "create_incident" && req.method === "POST") {
+      if (!canConfigure(profile)) {
+        throw new Error("Incident creation requires ADMIN, MANAGER or SUPERADMIN.");
+      }
+
       const b = await req.json();
       const groupIds: string[] = Array.isArray(b.group_ids) ? b.group_ids : [];
       const directContactIds: string[] = Array.isArray(b.contact_ids) ? b.contact_ids : [];
-      if (!b.title || !b.description || (!groupIds.length && !directContactIds.length)) {
-        throw new Error("Title, message and at least one recipient group/contact are required.");
+      const systemSettings = await settingsMap();
+      const requireRecipientSelection = systemSettings.require_recipient_selection !== false;
+      const hasRecipients = groupIds.length > 0 || directContactIds.length > 0;
+
+      if (!b.title || !b.description) {
+        throw new Error("Title and message are required.");
+      }
+      if (requireRecipientSelection && !hasRecipients) {
+        throw new Error("At least one recipient group/contact is required by System Settings.");
+      }
+      if (b.test_mode === false && !hasRecipients) {
+        throw new Error("Production Emergency always requires at least one recipient group/contact.");
       }
 
       const { groups, contacts, memberships } = await resolveRecipients(groupIds, directContactIds);
       const whatsappGroups = groups.filter((g: any) => g.whatsapp_group_url);
       const smtp = await smtpSettings();
-      const systemSettings = await settingsMap();
       const productionEnabled = systemSettings.production_enabled !== false;
       const productionReady = productionEnabled && smtp.configured && whatsappGroups.length > 0;
 
