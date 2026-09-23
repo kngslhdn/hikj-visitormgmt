@@ -51,6 +51,10 @@ function canConfigure(profile: any) {
   return ["ADMIN", "MANAGER", "SUPERADMIN"].includes(profile?.role);
 }
 
+function canCreateProductionIncident(profile: any) {
+  return ["MANAGER", "SUPERADMIN"].includes(profile?.role);
+}
+
 function isSuperAdmin(profile: any) {
   return profile?.role === "SUPERADMIN";
 }
@@ -596,11 +600,13 @@ Deno.serve(async (req) => {
       const productionEnabled = systemSettings.production_enabled !== false;
       const productionReady = productionEnabled && smtp.configured && whatsappGroups.length > 0;
 
-      if (b.test_mode === false && !productionEnabled) {
-        throw new Error("PRODUCTION EMERGENCY BLOCKED: Production Emergency is disabled in System Settings.");
-      }
-      if (b.test_mode === false && !productionReady) {
-        throw new Error("PRODUCTION EMERGENCY BLOCKED: SMTP and an ERT WhatsApp group must be configured first.");
+      if (b.test_mode === false) {
+        if (!canCreateProductionIncident(profile)) throw new Error("Production mode requires MANAGER or SUPERADMIN.");
+        if (systemSettings.require_production_confirmation !== false && b.production_confirmation !== true) {
+          throw new Error("Production mode requires explicit confirmation.");
+        }
+        if (!productionEnabled) throw new Error("PRODUCTION EMERGENCY BLOCKED: Production Emergency is disabled in System Settings.");
+        if (!productionReady) throw new Error("PRODUCTION EMERGENCY BLOCKED: SMTP and an ERT WhatsApp group must be configured first.");
       }
 
       const { data: incident, error } = await admin.from("emergency_incidents").insert({
