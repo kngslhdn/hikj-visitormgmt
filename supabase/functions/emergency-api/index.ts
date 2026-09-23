@@ -22,23 +22,13 @@ const esc = (v: unknown) =>
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;",
   }[c] ?? c));
 
-function smtpConfigured() {
-  const host = Deno.env.get("SMTP_HOST");
-  const from = Deno.env.get("SMTP_FROM");
-  const user = Deno.env.get("SMTP_USER");
-  const pass = Deno.env.get("SMTP_PASS");
-  return Boolean(host && from && ((!user && !pass) || (user && pass)));
-}
-
-function smtpConfig() {
+function smtpConfig(cfg: any) {
   return {
-    host: Deno.env.get("SMTP_HOST")!,
-    port: Number(Deno.env.get("SMTP_PORT") || "587"),
-    secure: Deno.env.get("SMTP_SECURE") === "true",
+    host: cfg.host!,
+    port: Number(cfg.port || 587),
+    secure: Boolean(cfg.secure),
     timeout: Number(Deno.env.get("SMTP_TIMEOUT") || "30000"),
-    ...(Deno.env.get("SMTP_USER") && Deno.env.get("SMTP_PASS")
-      ? { auth: { user: Deno.env.get("SMTP_USER")!, password: Deno.env.get("SMTP_PASS")! } }
-      : {}),
+    ...(cfg.user && cfg.pass ? { auth: { user: cfg.user, password: cfg.pass } } : {}),
   };
 }
 
@@ -55,6 +45,57 @@ async function auth(req: Request) {
     .single();
   if (!profile?.active) throw new Error("Active admin profile required");
   return { user, profile };
+}
+
+function canConfigure(profile: any) {
+  return ["ADMIN", "MANAGER", "SUPERADMIN"].includes(profile?.role);
+}
+
+function isSuperAdmin(profile: any) {
+  return profile?.role === "SUPERADMIN";
+}
+
+async function settingsMap() {
+  const { data, error } = await admin
+    .from("emergency_settings")
+    .select("setting_key,setting_value,description,active")
+    .eq("active", true)
+    .order("setting_key");
+  if (error) throw error;
+  const out: Record<string, any> = {};
+  for (const row of data || []) {
+    out[row.setting_key] = row.setting_value;
+  }
+  return out;
+}
+
+async function smtpSettings() {
+  const s = await settingsMap();
+  const host = s.smtp_host ?? Deno.env.get("SMTP_HOST");
+  const port = Number(s.smtp_port ?? Deno.env.get("SMTP_PORT") ?? "587");
+  const secure = Boolean(s.smtp_secure ?? (Deno.env.get("SMTP_SECURE") === "true"));
+  const from = s.smtp_from ?? Deno.env.get("SMTP_FROM");
+  const fromName = s.smtp_from_name ?? Deno.env.get("SMTP_FROM_NAME") ?? "HIKJ Emergency Response";
+  const replyTo = s.smtp_reply_to ?? Deno.env.get("SMTP_REPLY_TO") ?? "";
+  const user = Deno.env.get("SMTP_USER");
+  const pass = Deno.env.get("SMTP_PASS");
+  return {
+    host, port, secure, from, fromName, replyTo, user, pass,
+    configured: Boolean(host && from && ((!user && !pass) || (user && pass))),
+    password_configured: Boolean(pass),
+  };
+}
+
+async function audit(user: any, profile: any, action: string, target: string, description: string) {
+  await admin.from("audit_logs").insert({
+    user_id: user.id,
+    user_name: profile.full_name || user.email,
+    module: "EMERGENCY",
+    action,
+    target,
+    description,
+  });
+}
 }
 
 async function selectedGroups(groupIds: string[]) {
@@ -99,9 +140,9 @@ async function resolveRecipients(groupIds: string[], contactIds: string[]) {
   return { groups, contacts: contacts || [] };
 }
 
-async function sendEmail(recipients: string[], incident: any) {
-  if (!smtpConfigured()) return { status: "PENDING", error: "SMTP provider is not configured." };
-  const client = new SmtpClient(smtpConfig());
+async function sendEmail(recipients: string[], incident: any, cfg: any) {
+  if (!cfg.configured) return { status: "PENDING", error: "SMTP provider is not configured." };
+  const client = new SmtpClient(smtpConfig(cfg));
   const subjectPrefix = incident.test_mode ? "[TEST / DRILL] " : "[HIKJ EMERGENCY] ";
   const text = [
     "HIKJ EMERGENCY NOTIFICATION",
@@ -128,8 +169,8 @@ async function sendEmail(recipients: string[], incident: any) {
   </div>`;
   try {
     await client.send(createMessage({
-      from: Deno.env.get("SMTP_FROM")!,
-      to: Deno.env.get("SMTP_FROM")!,
+      from: cfg.from!,
+      to: cfg.from!,
       bcc: recipients,
       subject: subjectPrefix + incident.title,
       text,
@@ -153,21 +194,189 @@ Deno.serve(async (req) => {
     const action = u.searchParams.get("action") || "dashboard";
 
     if (action === "me") return json({ profile });
+    if (action === "settings_bootstrap") {
+      if (!canConfigure(profile)) throw new Error("Emergency Settings access requires ADMIN, MANAGER or SUPERADMIN.");
+      const [types, templates, groups, contacts, members, settings, auditRows] = await Promise.all([
+        admin.from("emergency_incident_types").select("*").order("priority").order("name"),
+        admin.from("emergency_message_templates").select("*").order("name"),
+        admin.from("emergency_contact_groups").select("*").order("name"),
+        admin.from("emergency_contacts").select("*").order("priority").order("full_name"),
+        admin.from("emergency_group_members").select("group_id,contact_id"),
+        admin.from("emergency_settings").select("setting_key,setting_value,description,active,updated_at").order("setting_key"),
+        admin.from("audit_logs").select("*").eq("module","EMERGENCY").order("created_at",{ascending:false}).limit(100),
+      ]);
+      for (const x of [types,templates,groups,contacts,members,settings,auditRows]) if (x.error) throw x.error;
+      const smtp = await smtpSettings();
+      return json({
+        profile,
+        types: types.data || [],
+        templates: templates.data || [],
+        groups: groups.data || [],
+        contacts: contacts.data || [],
+        members: members.data || [],
+        settings: settings.data || [],
+        audit: auditRows.data || [],
+        smtp: {
+          configured: smtp.configured,
+          password_configured: smtp.password_configured,
+          host: smtp.host || "",
+          port: smtp.port,
+          secure: smtp.secure,
+          from: smtp.from || "",
+          from_name: smtp.fromName || "",
+          reply_to: smtp.replyTo || "",
+        }
+      });
+    }
 
-    if (action === "bootstrap") {
-      const [a, b, c, d] = await Promise.all([
-        admin.from("emergency_incident_types").select("*").eq("active", true).order("name"),
+    if (action === "settings_mutation" && req.method === "POST") {
+      if (!canConfigure(profile)) throw new Error("Emergency Settings modification requires ADMIN, MANAGER or SUPERADMIN.");
+      const b = await req.json();
+      const resource = b.resource;
+      const op = b.op;
+      const d = b.data || {};
+      if (!resource || !op) throw new Error("resource and op are required.");
+
+      if (resource === "smtp" && !isSuperAdmin(profile)) {
+        throw new Error("SMTP configuration changes require SUPERADMIN.");
+      }
+
+      if (resource === "incident_type") {
+        if (!d.code || !d.name) throw new Error("Incident type code and name are required.");
+        const payload = {
+          code: String(d.code).trim().toUpperCase(),
+          name: String(d.name).trim(),
+          description: d.description || null,
+          default_severity: d.default_severity || "URGENT",
+          priority: Number(d.priority ?? 100),
+          active: d.active !== false,
+        };
+        const q = d.id
+          ? admin.from("emergency_incident_types").update(payload).eq("id", d.id).select().single()
+          : admin.from("emergency_incident_types").insert(payload).select().single();
+        const r = await q;
+        if (r.error) throw r.error;
+        await audit(user, profile, d.id ? "UPDATE" : "CREATE", payload.code, "Updated incident type configuration.");
+        return json({ ok: true, row: r.data });
+      }
+
+      if (resource === "template") {
+        if (!d.code || !d.name || !d.title_template || !d.message_template) throw new Error("Template code, name, title and message are required.");
+        const payload = {
+          code: String(d.code).trim().toUpperCase(),
+          name: String(d.name).trim(),
+          incident_type_code: d.incident_type_code || null,
+          severity: d.severity || "URGENT",
+          title_template: d.title_template,
+          message_template: d.message_template,
+          active: d.active !== false,
+        };
+        const q = d.id
+          ? admin.from("emergency_message_templates").update(payload).eq("id", d.id).select().single()
+          : admin.from("emergency_message_templates").insert(payload).select().single();
+        const r = await q;
+        if (r.error) throw r.error;
+        await audit(user, profile, d.id ? "UPDATE" : "CREATE", payload.code, "Updated emergency message template.");
+        return json({ ok: true, row: r.data });
+      }
+
+      if (resource === "group") {
+        if (!d.code || !d.name) throw new Error("Group code and name are required.");
+        const payload = {
+          code: String(d.code).trim().toUpperCase(),
+          name: String(d.name).trim(),
+          description: d.description || null,
+          whatsapp_group_url: d.whatsapp_group_url || null,
+          active: d.active !== false,
+        };
+        const q = d.id
+          ? admin.from("emergency_contact_groups").update(payload).eq("id", d.id).select().single()
+          : admin.from("emergency_contact_groups").insert(payload).select().single();
+        const r = await q;
+        if (r.error) throw r.error;
+        await audit(user, profile, d.id ? "UPDATE" : "CREATE", payload.code, "Updated emergency contact group.");
+        return json({ ok: true, row: r.data });
+      }
+
+      if (resource === "contact") {
+        if (!d.full_name) throw new Error("Contact name is required.");
+        const payload = {
+          full_name: String(d.full_name).trim(),
+          position: d.position || null,
+          department: d.department || null,
+          phone_number: d.phone_number || null,
+          email: d.email || null,
+          whatsapp_number: d.whatsapp_number || null,
+          priority: Number(d.priority ?? 100),
+          active: d.active !== false,
+        };
+        const q = d.id
+          ? admin.from("emergency_contacts").update(payload).eq("id", d.id).select().single()
+          : admin.from("emergency_contacts").insert(payload).select().single();
+        const r = await q;
+        if (r.error) throw r.error;
+        await audit(user, profile, d.id ? "UPDATE" : "CREATE", payload.full_name, "Updated emergency contact.");
+        return json({ ok: true, row: r.data });
+      }
+
+      if (resource === "members") {
+        if (!d.group_id) throw new Error("group_id is required.");
+        const contactIds = Array.isArray(d.contact_ids) ? [...new Set(d.contact_ids)] : [];
+        const del = await admin.from("emergency_group_members").delete().eq("group_id", d.group_id);
+        if (del.error) throw del.error;
+        if (contactIds.length) {
+          const ins = await admin.from("emergency_group_members").insert(contactIds.map((contact_id: string) => ({group_id:d.group_id,contact_id})));
+          if (ins.error) throw ins.error;
+        }
+        await audit(user, profile, "UPDATE", d.group_id, "Updated emergency group membership.");
+        return json({ ok: true });
+      }
+
+      if (resource === "setting") {
+        const allowed = new Set([
+          "default_severity","default_incident_type_code","default_location","timezone","incident_id_prefix",
+          "production_enabled","require_production_confirmation","require_recipient_selection",
+          "notification_retry_count","acknowledgement_timeout_minutes","auto_refresh_seconds","retention_days",
+          "smtp_host","smtp_port","smtp_secure","smtp_from","smtp_from_name","smtp_reply_to"
+        ]);
+        if (!allowed.has(d.setting_key)) throw new Error("Unsupported setting.");
+        if (d.setting_key.startsWith("smtp_") && !isSuperAdmin(profile)) throw new Error("SMTP settings require SUPERADMIN.");
+        const payload = {
+          setting_key: d.setting_key,
+          setting_value: d.setting_value,
+          description: d.description || null,
+          active: true,
+          updated_by: user.id,
+          updated_at: new Date().toISOString(),
+        };
+        const r = await admin.from("emergency_settings").upsert(payload,{onConflict:"setting_key"}).select().single();
+        if (r.error) throw r.error;
+        await audit(user, profile, "UPDATE", d.setting_key, "Updated emergency system setting.");
+        return json({ ok: true, row: r.data });
+      }
+
+      throw new Error("Unknown settings resource.");
+    }
+
+
+        if (action === "bootstrap") {
+      const [a, b, c, d, settings] = await Promise.all([
+        admin.from("emergency_incident_types").select("*").eq("active", true).order("priority").order("name"),
         admin.from("emergency_message_templates").select("*").eq("active", true).order("name"),
         admin.from("emergency_contacts").select("*").eq("active", true).order("priority").order("full_name"),
         admin.from("emergency_contact_groups").select("*").eq("active", true).order("name"),
+        admin.from("emergency_settings").select("setting_key,setting_value").eq("active", true).order("setting_key"),
       ]);
+      for (const x of [a,b,c,d,settings]) if (x.error) throw x.error;
+      const smtp = await smtpSettings();
       return json({
         types: a.data || [],
         templates: b.data || [],
         contacts: c.data || [],
         groups: d.data || [],
-        smtp_configured: smtpConfigured(),
-        production_ready: smtpConfigured() && (d.data || []).some((g: any) => g.whatsapp_group_url),
+        settings: settings.data || [],
+        smtp_configured: smtp.configured,
+        production_ready: smtp.configured && (d.data || []).some((g: any) => g.whatsapp_group_url)
       });
     }
 
@@ -181,6 +390,11 @@ Deno.serve(async (req) => {
         admin.from("emergency_contact_groups").select("id,name,whatsapp_group_url").eq("active", true),
       ]);
       const active = (inc.data || []).filter((x: any) => ["ACTIVE", "MONITORING"].includes(x.status));
+      const smtp = await smtpSettings();
+      const settingRows = await admin.from("emergency_settings").select("setting_key,setting_value").eq("active",true);
+      if (settingRows.error) throw settingRows.error;
+      const settingMap: Record<string, any> = {};
+      for (const row of settingRows.data || []) settingMap[row.setting_key] = row.setting_value;
       return json({
         stats: {
           active: active.length,
@@ -189,8 +403,8 @@ Deno.serve(async (req) => {
           pending_ack: Math.max(0, (ack.data || []).filter((x: any) => !x.emergency_acknowledgements).length),
         },
         incidents: inc.data || [],
-        smtp_configured: smtpConfigured(),
-        production_ready: smtpConfigured() && (groups.data || []).some((g: any) => g.whatsapp_group_url),
+        smtp_configured: smtp.configured,
+        production_ready: Boolean(settingMap.production_enabled !== false) && smtp.configured && (groups.data || []).some((g: any) => g.whatsapp_group_url),
       });
     }
 
@@ -212,6 +426,29 @@ Deno.serve(async (req) => {
       return json({ incident: i.data, notifications, updates: up.data || [] });
     }
 
+    
+    if (action === "smtp_test" && req.method === "POST") {
+      if (!isSuperAdmin(profile)) throw new Error("SMTP test requires SUPERADMIN.");
+      const cfg = await smtpSettings();
+      if (!cfg.configured) throw new Error("SMTP is not fully configured. Check host, From address and SMTP secrets.");
+      const result = await sendEmail(
+        [user.email!],
+        {
+          incident_id: "SMTP-TEST",
+          severity: "INFORMATION",
+          title: "HIKJ Emergency SMTP Test",
+          location: "Emergency Settings",
+          created_at: new Date().toISOString(),
+          description: "This is a test email from the HIKJ Emergency Response System.",
+          test_mode: true,
+        },
+        cfg
+      );
+      await audit(user, profile, "TEST", "SMTP", "Executed SMTP test email.");
+      if (result.status !== "SENT") throw new Error(result.error || "SMTP test failed.");
+      return json({ ok: true, status: result.status, recipient: user.email });
+    }
+
     if (action === "create_incident" && req.method === "POST") {
       const b = await req.json();
       const groupIds: string[] = Array.isArray(b.group_ids) ? b.group_ids : [];
@@ -222,8 +459,14 @@ Deno.serve(async (req) => {
 
       const { groups, contacts } = await resolveRecipients(groupIds, directContactIds);
       const whatsappGroups = groups.filter((g: any) => g.whatsapp_group_url);
-      const productionReady = smtpConfigured() && whatsappGroups.length > 0;
+      const smtp = await smtpSettings();
+      const systemSettings = await settingsMap();
+      const productionEnabled = systemSettings.production_enabled !== false;
+      const productionReady = productionEnabled && smtp.configured && whatsappGroups.length > 0;
 
+      if (b.test_mode === false && !productionEnabled) {
+        throw new Error("PRODUCTION EMERGENCY BLOCKED: Production Emergency is disabled in System Settings.");
+      }
       if (b.test_mode === false && !productionReady) {
         throw new Error("PRODUCTION EMERGENCY BLOCKED: SMTP and an ERT WhatsApp group must be configured first.");
       }
@@ -263,7 +506,7 @@ Deno.serve(async (req) => {
       const emailContacts = contacts.filter((c: any) => c.email).map((c: any) => c.email);
       const uniqueEmails = [...new Set(emailContacts)];
       const emailResult = uniqueEmails.length
-        ? await sendEmail(uniqueEmails, incident)
+        ? await sendEmail(uniqueEmails, incident, smtp)
         : { status: "PENDING", error: "No email recipients configured." };
 
       if (uniqueEmails.length) {
