@@ -77,11 +77,24 @@ async function smtpSettings() {
   const from = s.smtp_from ?? Deno.env.get("SMTP_FROM");
   const fromName = s.smtp_from_name ?? Deno.env.get("SMTP_FROM_NAME") ?? "HIKJ Emergency Response";
   const replyTo = s.smtp_reply_to ?? Deno.env.get("SMTP_REPLY_TO") ?? "";
-  const user = Deno.env.get("SMTP_USER");
-  const pass = Deno.env.get("SMTP_PASS");
+  let vaultUser = "";
+  let vaultPass = "";
+  try {
+    const [u, p] = await Promise.all([
+      admin.rpc("emergency_get_smtp_secret", { p_name: "hikj_emergency_smtp_username" }),
+      admin.rpc("emergency_get_smtp_secret", { p_name: "hikj_emergency_smtp_password" }),
+    ]);
+    vaultUser = u.data || "";
+    vaultPass = p.data || "";
+  } catch (_) {
+    // Fall back to Edge Function secrets for backward compatibility.
+  }
+  const user = s.smtp_username ?? vaultUser ?? Deno.env.get("SMTP_USER") ?? "";
+  const pass = vaultPass || Deno.env.get("SMTP_PASS") || "";
   return {
     host, port, secure, from, fromName, replyTo, user, pass,
-    configured: Boolean(host && from && ((!user && !pass) || (user && pass))),
+    configured: Boolean(host && from && user && pass),
+    username_configured: Boolean(user),
     password_configured: Boolean(pass),
   };
 }
@@ -219,7 +232,9 @@ Deno.serve(async (req) => {
         audit: auditRows.data || [],
         smtp: {
           configured: smtp.configured,
+          username_configured: smtp.username_configured,
           password_configured: smtp.password_configured,
+          username: smtp.user || "",
           host: smtp.host || "",
           port: smtp.port,
           secure: smtp.secure,
@@ -240,6 +255,20 @@ Deno.serve(async (req) => {
 
       if (resource === "smtp" && !isSuperAdmin(profile)) {
         throw new Error("SMTP configuration changes require SUPERADMIN.");
+      }
+
+      if (resource === "smtp_secret") {
+        if (!isSuperAdmin(profile)) throw new Error("SMTP credentials require SUPERADMIN.");
+        const name = d.name;
+        if (!["hikj_emergency_smtp_username","hikj_emergency_smtp_password"].includes(name)) {
+          throw new Error("Unsupported SMTP credential.");
+        }
+        const value = String(d.value || "").trim();
+        if (!value) throw new Error("SMTP credential value is required.");
+        const r = await admin.rpc("emergency_set_smtp_secret", { p_name: name, p_secret: value });
+        if (r.error) throw r.error;
+        await audit(user, profile, "UPDATE", name, "Updated protected SMTP credential.");
+        return json({ ok: true });
       }
 
       if (resource === "incident_type") {
@@ -346,7 +375,7 @@ Deno.serve(async (req) => {
           "default_severity","default_incident_type_code","default_location","timezone","incident_id_prefix",
           "production_enabled","require_production_confirmation","require_recipient_selection",
           "notification_retry_count","acknowledgement_timeout_minutes","auto_refresh_seconds","retention_days",
-          "smtp_host","smtp_port","smtp_secure","smtp_from","smtp_from_name","smtp_reply_to"
+          "smtp_host","smtp_port","smtp_secure","smtp_username","smtp_from","smtp_from_name","smtp_reply_to"
         ]);
         if (!allowed.has(d.setting_key)) throw new Error("Unsupported setting.");
         if (d.setting_key.startsWith("smtp_") && !isSuperAdmin(profile)) throw new Error("SMTP settings require SUPERADMIN.");
