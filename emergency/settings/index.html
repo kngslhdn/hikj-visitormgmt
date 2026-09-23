@@ -45,7 +45,7 @@ main{max-width:1250px;width:100%;padding:28px 26px;margin:0 auto}.hero{display:f
 </nav>
 </aside>
 <main>
-<div class="hero"><div><h1 id="pageTitle">Emergency Settings</h1><p id="pageDescription">Configure the HIKJ Emergency Notification System without editing code.</p></div><span class="role" id="roleBadge">—</span></div>
+<div class="hero"><div><h1 id="pageTitle">Emergency Settings</h1><p id="pageDescription">Configure the HIKJ Emergency Notification System without editing code.</p></div></div>
 
 <section class="panel page-section" id="types"><div class="panelhead"><div><h2>Incident Types</h2><p>Control the Incident Type dropdown and default severity.</p></div><button class="btn primary" onclick="openType()">+ Add Type</button></div><div class="body"><div class="table"><table><thead><tr><th>Code</th><th>Name</th><th>Default Severity</th><th>Priority</th><th>Status</th><th></th></tr></thead><tbody id="typeRows"></tbody></table></div></div></section>
 
@@ -96,7 +96,7 @@ async function api(action,method='GET',body=null){const r=await fetch(API+'?acti
 function setting(k,d){const x=state.settings.find(x=>x.setting_key===k);return x?x.setting_value:d}
 function canEdit(){return ['ADMIN','MANAGER','SUPERADMIN'].includes(state.profile?.role)}
 function superAdmin(){return state.profile?.role==='SUPERADMIN'}
-async function load(){const r=await api('settings_bootstrap');state=r;state.settings=r.settings||[];state.types=r.types||[];state.templates=r.templates||[];state.groups=r.groups||[];state.contacts=r.contacts||[];state.members=r.members||[];state.audit=r.audit||[];state.smtp=r.smtp||{};$('userBox').innerHTML='<b>'+esc(r.profile.full_name||'Admin')+'</b><br>'+esc(r.profile.role);$('roleBadge').textContent=r.profile.role;renderAll()}
+async function load(){const r=await api('settings_bootstrap');state=r;state.settings=r.settings||[];state.types=r.types||[];state.templates=r.templates||[];state.groups=r.groups||[];state.contacts=r.contacts||[];state.members=r.members||[];state.audit=r.audit||[];state.smtp=r.smtp||{};$('userBox').innerHTML='<b>'+esc(r.profile.full_name||'Admin')+'</b><br>'+esc(r.profile.role);renderAll()}
 async function save(resource,data){const r=await api('settings_mutation','POST',{resource,op:data.id?'update':'create',data});await load();return r}
 function currentPage(){const p=new URLSearchParams(location.search).get('page');return ['types','templates','groups','contacts','smtp','channels','system','audit'].includes(p)?p:'types'}
 function setPage(){const p=currentPage();const meta={types:['Incident Types','Control the Incident Type dropdown and default severity.'],templates:['Message Templates','Customize titles and emergency messages used by the Template dropdown.'],groups:['Contact / WhatsApp Groups','Configure group names, WhatsApp URLs and membership.'],contacts:['Emergency Contacts','Maintain people available for emergency notification.'],smtp:['SMTP Email','Configure secure email delivery settings.'],channels:['Notification Channels','Review the operational readiness of each notification channel.'],system:['System Settings','Manage defaults and safety controls for Emergency Operations.'],audit:['Audit Log','Review configuration and emergency activity changes.']}[p];document.querySelectorAll('.page-section').forEach(s=>s.classList.toggle('current',s.id===p));document.querySelectorAll('[data-nav]').forEach(a=>a.classList.toggle('active',a.dataset.nav===p));$('pageTitle').textContent=meta[0];$('pageDescription').textContent=meta[1];}
