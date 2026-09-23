@@ -17,7 +17,7 @@ main{max-width:1320px;margin:28px auto;padding:0 22px}.hero{display:flex;justify
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px}.stat{background:#fff;border:1px solid var(--line);border-radius:13px;padding:14px 15px;box-shadow:0 4px 14px rgba(7,26,48,.035)}.stat b{display:block;font-size:22px;color:var(--navy)}.stat span{font-size:9px;color:var(--muted)}
 .table{overflow:auto}.table table{width:100%;border-collapse:collapse}.table th,.table td{padding:10px 9px;border-bottom:1px solid #edf0f2;text-align:left;font-size:10px}.table th{text-transform:uppercase;color:var(--muted);font-size:8px}.badge{padding:3px 7px;border-radius:999px;font-size:8px;font-weight:700}.urgent{background:#fee2e2;color:#991b1b}.high{background:#ffedd5;color:#9a3412}.normal{background:#fef9c3;color:#854d0e}.info{background:#e2e8f0;color:#475569}.active{background:#dcfce7;color:#166534}.draft{background:#f1f5f9;color:#64748b}
 .notice{margin-top:10px;font-size:10px;color:var(--green);min-height:16px}.notice.err{color:#991b1b}.login{min-height:100vh;display:grid;place-items:center;background:radial-gradient(circle at 50% 0,#173c64,#071a30 68%);padding:20px}.login .card{width:min(430px,100%);padding:30px}.login h1{font:500 28px "Bodoni Moda",Georgia,serif;color:var(--navy);margin:0 0 8px}.login p{color:var(--muted);font-size:11px}.user{font-size:10px;text-align:right}.modal{position:fixed;inset:0;background:#071a3088;display:none;align-items:center;justify-content:center;padding:18px;z-index:50}.modal.open{display:flex}.modalbox{width:min(700px,100%);max-height:90vh;overflow:auto;background:#fff;border-radius:14px;padding:18px}.timeline{border-left:2px solid #e5e7eb;padding-left:14px}.event{margin-bottom:13px}.event b{font-size:10px}.event small{display:block;color:var(--muted);font-size:9px}.event p{font-size:10px;margin:3px 0}
-@media(max-width:850px){.grid{grid-template-columns:1fr}.fields{grid-template-columns:1fr}.stats{grid-template-columns:1fr 1fr}.hero{align-items:flex-start;flex-direction:column}.sev{grid-template-columns:1fr 1fr}}
+.shell{display:grid;grid-template-columns:225px minmax(0,1fr);max-width:1400px;margin:0 auto}.side{background:#fff;border-right:1px solid var(--line);min-height:calc(100vh - 72px);padding:18px 12px;position:sticky;top:72px;align-self:start}.side-title{font-size:8px;font-weight:700;color:#94a3b8;letter-spacing:1.2px;padding:10px 9px 6px}.side-nav{display:flex;flex-direction:column;gap:3px}.side-nav a{display:flex;gap:8px;align-items:center;padding:9px 10px;border-radius:9px;text-decoration:none;color:#334155;font-size:10px;font-weight:600}.side-nav a:hover,.side-nav a.active{background:#eef3f8;color:var(--navy)}.side-nav a.active{box-shadow:inset 3px 0 0 var(--gold)}.shell>main{min-width:0;max-width:none;margin:0;padding:28px 24px}.settings-link{margin-top:5px}@media(max-width:900px){.shell{display:block}.side{position:static;min-height:auto;border-right:0;border-bottom:1px solid var(--line);display:flex;gap:12px;overflow:auto;padding:10px 12px}.side-title{display:none}.side-nav{flex-direction:row;white-space:nowrap}.side-nav a{padding:8px 10px}.shell>main{padding:22px 16px}}@media(max-width:850px){.grid{grid-template-columns:1fr}.fields{grid-template-columns:1fr}.stats{grid-template-columns:1fr 1fr}.hero{align-items:flex-start;flex-direction:column}.sev{grid-template-columns:1fr 1fr}}
 </style>
 </head>
 <body>
@@ -27,7 +27,16 @@ main{max-width:1320px;margin:28px auto;padding:0 22px}.hero{display:flex;justify
 </div></section>
 <section id="app" class="hidden">
 <header class="top"><div class="brand">HIKJ EMERGENCY RESPONSE<small>EMERGENCY NOTIFICATION SYSTEM</small></div><div style="display:flex;gap:8px;align-items:center"><div class="user"><b id="userName">—</b><br><span id="userRole">—</span></div><a href="../admin/">Visitor Admin</a><button id="logout">Sign Out</button></div></header>
-<main>
+<div class="shell"><aside class="side">
+<div class="side-title">MAIN</div><nav class="side-nav">
+<a class="active" href="./">🚨 Emergency Operations</a>
+<a href="#active">🔴 Active Incidents</a>
+<a href="#history">📋 Incident History</a>
+</nav>
+<div class="side-title">EMERGENCY SETTINGS</div><nav class="side-nav">
+<a class="settings-link" href="./settings/">⚙ Emergency Settings</a>
+</nav>
+</aside><main>
 <div class="hero"><div><h1>Emergency Operations</h1><p>Create, notify, track and close hotel safety incidents.</p></div><div class="mode" id="modeBadge">TEST / DRILL MODE</div></div>
 <div class="stats"><div class="stat"><b id="sActive">0</b><span>ACTIVE INCIDENTS</span></div><div class="stat"><b id="sUrgent">0</b><span>URGENT</span></div><div class="stat"><b id="sToday">0</b><span>NOTIFICATIONS TODAY</span></div><div class="stat"><b id="sAck">0</b><span>PENDING ACKNOWLEDGEMENT</span></div></div>
 <div class="grid">
@@ -53,7 +62,7 @@ main{max-width:1320px;margin:28px auto;padding:0 22px}.hero{display:flex;justify
 </form></div></section>
 <section class="card"><div class="head"><h2>Active Incidents</h2><button class="btn" id="refresh">Refresh</button></div><div class="body"><div class="table"><table><thead><tr><th>Incident</th><th>Severity</th><th>Status</th><th>Time</th></tr></thead><tbody id="incidentRows"></tbody></table></div></div></section>
 </div>
-</main></section>
+</main></div></section>
 <div class="modal" id="modal"><div class="modalbox"><div class="head" style="padding:0 0 12px;border:0"><h2 id="mTitle">Incident</h2><button class="btn" id="mClose">Close</button></div><div id="mBody"></div></div></div>
 <script>
 const U='https://hmqgmusellcetakoalva.supabase.co',K='sb_publishable_J6P-baCAZOoVxj2rHBZMkA_Ux4U5_mQ';
