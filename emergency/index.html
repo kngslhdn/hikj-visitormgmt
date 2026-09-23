@@ -16,14 +16,48 @@ main{max-width:1320px;margin:28px auto;padding:0 22px}.hero{display:flex;justify
 .recips{max-height:260px;overflow:auto;border:1px solid #e4e9ef;border-radius:10px;padding:8px;background:#fbfcfd}.recip{display:flex;gap:8px;padding:8px;border-bottom:1px solid #edf1f4;font-size:10px;align-items:flex-start}.recip:last-child{border-bottom:0}.recip small{display:block;color:var(--muted)}
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px}.stat{background:#fff;border:1px solid var(--line);border-radius:13px;padding:14px 15px;box-shadow:0 4px 14px rgba(7,26,48,.035)}.stat b{display:block;font-size:22px;color:var(--navy)}.stat span{font-size:9px;color:var(--muted)}
 .table{overflow:auto}.table table{width:100%;border-collapse:collapse}.table th,.table td{padding:10px 9px;border-bottom:1px solid #edf0f2;text-align:left;font-size:10px}.table th{text-transform:uppercase;color:var(--muted);font-size:8px}.badge{padding:3px 7px;border-radius:999px;font-size:8px;font-weight:700}.urgent{background:#fee2e2;color:#991b1b}.high{background:#ffedd5;color:#9a3412}.normal{background:#fef9c3;color:#854d0e}.info{background:#e2e8f0;color:#475569}.active{background:#dcfce7;color:#166534}.draft{background:#f1f5f9;color:#64748b}
-.notice{margin-top:10px;font-size:10px;color:var(--green);min-height:16px}.notice.err{color:#991b1b}.login{min-height:100vh;display:grid;place-items:center;background:radial-gradient(circle at 50% 0,#173c64,#071a30 68%);padding:20px}.login .card{width:min(430px,100%);padding:30px}.login h1{font:500 28px Poppins,Arial,sans-serif;color:var(--navy);margin:0 0 8px}.login p{color:var(--muted);font-size:11px}.user{font-size:10px;text-align:right}.modal{position:fixed;inset:0;background:#071a3088;display:none;align-items:center;justify-content:center;padding:18px;z-index:50}.modal.open{display:flex}.modalbox{width:min(700px,100%);max-height:90vh;overflow:auto;background:#fff;border-radius:14px;padding:18px}.timeline{border-left:2px solid #e5e7eb;padding-left:14px}.event{margin-bottom:13px}.event b{font-size:10px}.event small{display:block;color:var(--muted);font-size:9px}.event p{font-size:10px;margin:3px 0}
+.notice{margin-top:10px;font-size:10px;color:var(--green);min-height:16px}.notice.err{color:#991b1b}.login{min-height:100vh;display:grid;place-items:center;padding:20px;background:radial-gradient(circle at 50% 0,#173c64,#071a30 68%)}
+.login-card{width:min(430px,100%);background:#fff;border-radius:18px;padding:30px;box-shadow:0 25px 80px #0007}
+.login-logo{width:120px;height:76px;object-fit:contain;display:block;margin:0 auto 12px;filter:brightness(0)}
+.login-brand{text-align:center;color:var(--navy);font-weight:700;font-size:20px}
+.login-brand small{display:block;color:var(--muted);font-weight:400;font-size:10px;margin-top:5px;letter-spacing:1px}
+.login-card h1{font-size:22px;margin:28px 0 6px}
+.login-card p{color:var(--muted);font-size:12px;margin:0 0 22px}
+.login-card .field{margin:15px 0}
+.login-card .field label{display:block;font-size:12px;font-weight:700;margin-bottom:6px}
+.login-card .field input{width:100%;padding:12px;border:1px solid var(--line);border-radius:9px;outline:none}
+.login-btn{width:100%;padding:13px;border:1px solid var(--navy);border-radius:9px;background:var(--navy);color:#fff;font-weight:700;cursor:pointer;transition:transform .14s ease,background .14s ease,border-color .14s ease,box-shadow .14s ease;box-shadow:0 2px 5px rgba(7,26,48,.12)}
+.login-btn:hover{background:#102d4b;border-color:#c99a3d;transform:translateY(-1px);box-shadow:0 5px 14px rgba(7,26,48,.16)}
+.login-btn:active{transform:translateY(0);box-shadow:0 1px 3px rgba(7,26,48,.08)}
+.login-btn:focus-visible{outline:2px solid #c99a3d;outline-offset:2px}
+.login-btn:disabled{opacity:.55;cursor:not-allowed;transform:none;box-shadow:none}
+.back-form{display:block;text-align:center;margin-top:14px;color:var(--navy);font-size:12px;font-weight:700;text-decoration:none}
+.back-form:hover{text-decoration:underline}
+.login-error{color:var(--red);font-size:12px;min-height:18px;margin-top:10px}
+@media (min-width:901px) and (max-height:850px){
+  .login{padding:12px}
+  .login-card{width:min(430px,100%);border-radius:18px;padding:22px 30px;box-shadow:0 20px 60px #0007}
+  .login-logo{width:88px;height:52px;margin:0 auto 7px}
+  .login-brand{font-size:19px}
+  .login-brand small{font-size:9px;margin-top:3px}
+  .login-card h1{font-size:21px;margin:18px 0 4px}
+  .login-card p{font-size:11px;margin:0 0 14px}
+  .login-card .field{margin:10px 0}
+  .login-card .field label{font-size:11px;margin-bottom:5px}
+  .login-card .field input{padding:10px;border-radius:8px}
+  .login-btn{padding:11px;border-radius:8px}
+  .back-form{margin-top:10px;font-size:11px}
+  .login-error{font-size:11px;min-height:16px;margin-top:7px}
+}.user{font-size:10px;text-align:right}.modal{position:fixed;inset:0;background:#071a3088;display:none;align-items:center;justify-content:center;padding:18px;z-index:50}.modal.open{display:flex}.modalbox{width:min(700px,100%);max-height:90vh;overflow:auto;background:#fff;border-radius:14px;padding:18px}.timeline{border-left:2px solid #e5e7eb;padding-left:14px}.event{margin-bottom:13px}.event b{font-size:10px}.event small{display:block;color:var(--muted);font-size:9px}.event p{font-size:10px;margin:3px 0}
 .shell{display:grid;grid-template-columns:225px minmax(0,1fr);max-width:1400px;height:calc(100vh - 120px);margin:0 auto;overflow:hidden}.side{background:#fff;border-right:1px solid var(--line);height:100%;min-height:0;padding:18px 12px;position:sticky;top:0;align-self:start;overflow:auto}.side-title{font-size:8px;font-weight:700;color:#94a3b8;letter-spacing:1.2px;padding:10px 9px 6px}.side-nav{display:flex;flex-direction:column;gap:3px}.side-nav a{display:flex;gap:8px;align-items:center;padding:9px 10px;border-radius:9px;text-decoration:none;color:#334155;font-size:10px;font-weight:600}.side-nav a:hover,.side-nav a.active{background:#eef3f8;color:var(--navy)}.side-nav a.active{box-shadow:inset 3px 0 0 var(--gold)}.shell>main{min-width:0;max-width:none;margin:0;padding:28px 24px;height:100%;overflow:auto}.settings-link{margin-top:5px}@media(max-width:900px){.shell{display:block;height:auto;overflow:visible}.side{position:static;height:auto;min-height:auto;border-right:0;border-bottom:1px solid var(--line);display:flex;gap:12px;overflow:auto;padding:10px 12px}.side-title{display:none}.side-nav{flex-direction:row;white-space:nowrap}.side-nav a{padding:8px 10px}.shell>main{height:auto;overflow:visible;padding:22px 16px}.actionbar-inner{padding:8px 16px}}@media(max-width:850px){.grid{grid-template-columns:1fr}.fields{grid-template-columns:1fr}.stats{grid-template-columns:1fr 1fr}.hero{align-items:flex-start;flex-direction:column}.sev{grid-template-columns:1fr 1fr}}
 </style>
 </head>
 <body>
-<section id="login" class="login"><div class="card">
-<h1>Emergency Response</h1><p>HIKJ Emergency Notification System · Authorized ERT personnel only</p>
-<form id="loginForm"><div class="field"><label>Email</label><input id="email" type="email" required></div><div class="field" style="margin-top:12px"><label>Password</label><input id="password" type="password" required></div><div class="actions"><button class="btn primary" style="width:100%" id="loginBtn">SIGN IN</button></div><div class="notice err" id="loginErr"></div></form>
+<section id="login" class="login"><div class="login-card">
+<img class="login-logo" src="../assets/hikj-logo.svg" alt="Hotel Indonesia Kempinski Jakarta">
+<div class="login-brand">Emergency Response<small>EMERGENCY NOTIFICATION SYSTEM</small></div>
+<h1>Admin Sign In</h1><p>Authorized ERT personnel only</p>
+<form id="loginForm"><div class="field"><label>Email</label><input id="email" type="email" autocomplete="username" required></div><div class="field"><label>Password</label><input id="password" type="password" autocomplete="current-password" required></div><button id="loginBtn" class="login-btn" type="submit">SIGN IN</button><div id="loginErr" class="login-error"></div></form>
 </div></section>
 <section id="app" class="hidden">
 <header class="top"><div class="brand">EMERGENCY RESPONSE<small>EMERGENCY NOTIFICATION SYSTEM</small></div><div class="top-user"><b id="userName">—</b><br><span id="userRole">—</span></div></header>
