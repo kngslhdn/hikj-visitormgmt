@@ -524,8 +524,50 @@ Deno.serve(async (req) => {
         created_by: user.id,
       });
       if (timeline.error) throw timeline.error;
+      // Resolution notifications use the same configured WhatsApp groups as the original incident.
+      const resolutionGroups = await admin.from("emergency_contact_groups")
+        .select("id,name,whatsapp_group_url")
+        .eq("active", true)
+        .not("whatsapp_group_url", "is", null);
+      if (resolutionGroups.error) throw resolutionGroups.error;
+      const resolutionDispatches = (resolutionGroups.data || [])
+        .filter((g:any) => String(g.whatsapp_group_url || "").trim())
+        .map((g:any) => ({
+          group_id: g.id,
+          group_name: g.name,
+          url: g.whatsapp_group_url,
+          message: [
+            "✅ HIKJ EMERGENCY RESOLVED",
+            "",
+            `Incident: ${upd.data.incident_id}`,
+            `Severity: ${upd.data.severity}`,
+            `Title: ${upd.data.title}`,
+            `Location: ${upd.data.location || "-"}`,
+            "",
+            `Resolution Reason: ${reason}`,
+            `Resolution Notes: ${notes}`,
+            "",
+            `Resolved by: ${profile.full_name || user.email}`,
+            `Resolved at: ${new Date(now).toLocaleString("en-GB", { timeZone: "Asia/Jakarta" })}`,
+          ].join("\\n"),
+        }));
+
+      for (const g of resolutionDispatches) {
+        await admin.from("emergency_notifications").insert({
+          incident_id: b.incident_id,
+          group_id: g.group_id,
+          channel: "WHATSAPP",
+          status: "PENDING",
+          error_message: "Manual resolution dispatch: open the configured WhatsApp group and press Send.",
+        });
+      }
+
       await audit(user, profile, "RESOLVE_INCIDENT", upd.data.incident_id, `Resolved incident. reason=${reason}`);
-      return json({ ok: true, incident: upd.data });
+      return json({
+        ok: true,
+        incident: upd.data,
+        whatsapp: { manual: true, dispatches: resolutionDispatches },
+      });
     }
 
     if (action === "reopen_incident" && req.method === "POST") {
