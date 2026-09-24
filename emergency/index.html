@@ -115,25 +115,65 @@ function renderRecipients(){$('recipients').innerHTML=(contacts.length?contacts.
 function renderGroups(){$('groups').innerHTML=(groups.length?groups.map(x=>'<label class="recip"><input type="checkbox" value="'+x.id+'"><span><b>'+esc(x.name)+'</b><small>'+esc(x.code)+' · '+(x.whatsapp_group_url?'WhatsApp configured':'No WhatsApp URL')+'</small></span></label>').join(''):'No active emergency groups configured yet')}
 function applyDefaults(){const sev=systemSettings.default_severity||'URGENT';const typeCode=systemSettings.default_incident_type_code;const t=types.find(x=>x.code===typeCode)||types[0];if(t)$('type').value=t.id;$('location').value=systemSettings.default_location||'';const radio=document.querySelector('input[name=severity][value="'+sev+'"]');if(radio)radio.checked=true;$('testMode').value=systemSettings.production_enabled===false?'true':'true'}
 function renderTemplateText(t){const type=types.find(x=>x.id===$('type').value);const vars={title:$('title').value||'Incident',location:$('location').value||'Location',time:new Date().toLocaleString('en-GB'),incident_id:'[Generated on create]',severity:document.querySelector('input[name=severity]:checked')?.value||'URGENT',incident_type:type?.name||'',description:$('message').value||''};const replace=s=>String(s||'').replace(/{{(title|location|time|incident_id|severity|incident_type|description)}}/g,(_,k)=>vars[k]??'');$('title').value=replace(t.title_template);$('message').value=replace(t.message_template)}
-let templateBase={title:'',message:''};
+let templateBase={title:'',message:'',generatedTitle:'',generatedMessage:''};
 function applyTemplate(t,{force=false}={}){
   if(!t)return;
-  const titleValue=$('title').value;
-  const messageValue=$('message').value;
-  const titlePristine=!titleValue || titleValue===templateBase.title;
-  const messagePristine=!messageValue || messageValue===templateBase.message;
+  const currentTitle=$('title').value.trim();
+  const currentMessage=$('message').value.trim();
+
+  // Prevent previously generated template output from being used as the
+  // {{title}}/{{description}} input on the next template render.
+  const titleIsGenerated=currentTitle===templateBase.generatedTitle;
+  const messageIsGenerated=currentMessage===templateBase.generatedMessage;
+  const userTitle=(!currentTitle||titleIsGenerated)?'':currentTitle;
+  const userMessage=(!currentMessage||messageIsGenerated)?'':currentMessage;
+
   const type=types.find(x=>x.id===$('type').value);
-  const vars={title:titleValue||'Incident',location:$('location').value||systemSettings.default_location||'Location',time:new Date().toLocaleString('en-GB'),incident_id:'[Generated on create]',severity:document.querySelector('input[name=severity]:checked')?.value||'URGENT',incident_type:type?.name||'',description:messageValue||''};
+  const vars={
+    title:userTitle||'Incident',
+    location:$('location').value||systemSettings.default_location||'Location',
+    time:new Date().toLocaleString('en-GB'),
+    incident_id:'[Generated on create]',
+    severity:document.querySelector('input[name=severity]:checked')?.value||'URGENT',
+    incident_type:type?.name||'',
+    description:userMessage||''
+  };
   const replace=s=>String(s||'').replace(/{{(title|location|time|incident_id|severity|incident_type|description)}}/g,(_,k)=>vars[k]??'');
-  if(force||titlePristine)$('title').value=replace(t.title_template);
-  if(force||messagePristine)$('message').value=replace(t.message_template);
-  templateBase={title:$('title').value,message:$('message').value};
+
+  const nextTitle=replace(t.title_template);
+  const nextMessage=replace(t.message_template);
+  if(force||!currentTitle||titleIsGenerated)$('title').value=nextTitle;
+  if(force||!currentMessage||messageIsGenerated)$('message').value=nextMessage;
+
+  templateBase={
+    title:userTitle,
+    message:userMessage,
+    generatedTitle:$('title').value,
+    generatedMessage:$('message').value
+  };
 }
-$('template').onchange=()=>{const t=templates.find(x=>x.id===$('template').value);if(!t){templateBase={title:'',message:''};return}applyTemplate(t,{force:true})};
-$('location').oninput=()=>{const t=templates.find(x=>x.id===$('template').value);if(t)applyTemplate(t)};
-$('title').oninput=()=>{if($('template').value)templateBase.title=$('title').value};
-$('message').oninput=()=>{if($('template').value)templateBase.message=$('message').value};
-$('clearBtn').onclick=()=>{$('incidentForm').reset();$('message').value='';document.querySelectorAll('#recipients input,#groups input').forEach(x=>x.checked=false);applyDefaults()};
+$('template').onchange=()=>{
+  const t=templates.find(x=>x.id===$('template').value);
+  if(!t){templateBase={title:'',message:'',generatedTitle:'',generatedMessage:''};return}
+  applyTemplate(t,{force:true});
+};
+$('location').oninput=()=>{
+  const t=templates.find(x=>x.id===$('template').value);
+  if(t)applyTemplate(t);
+};
+$('title').oninput=()=>{
+  if($('template').value)templateBase.generatedTitle='';
+};
+$('message').oninput=()=>{
+  if($('template').value)templateBase.generatedMessage='';
+};
+$('clearBtn').onclick=()=>{
+  $('incidentForm').reset();
+  $('message').value='';
+  templateBase={title:'',message:'',generatedTitle:'',generatedMessage:''};
+  document.querySelectorAll('#recipients input,#groups input').forEach(x=>x.checked=false);
+  applyDefaults();
+};
 $('incidentForm').onsubmit=async e=>{e.preventDefault();const ids=[...document.querySelectorAll('#recipients input:checked')].map(x=>x.value);const groupIds=[...document.querySelectorAll('#groups input:checked')].map(x=>x.value);if(!ids.length&&!groupIds.length){$('sendNotice').textContent='Select at least one recipient group or direct recipient';$('sendNotice').classList.add('err');return}const production=$('testMode').value==='false';const requireConfirm=systemSettings.require_production_confirmation!==false;if(production&&requireConfirm&&!confirm('CONFIRM PRODUCTION EMERGENCY\n\nThis will create a production emergency notification. Continue?'))return;if(!confirm('Review complete? Create notification for '+(ids.length+groupIds.length)+' recipient target(s)?'))return;$('sendBtn').disabled=true;try{const sev=document.querySelector('input[name=severity]:checked').value;const r=await api('create_incident','POST',{incident_type_id:$('type').value||null,severity:sev,title:$('title').value.trim(),location:$('location').value.trim(),description:$('message').value.trim(),test_mode:!production,contact_ids:ids,group_ids:groupIds});$('sendNotice').classList.remove('err');$('sendNotice').textContent=r.production_ready?'Notification queued and production channels are configured':'Incident created. Notification records are queued; production provider configuration is still pending';await refresh();}catch(err){$('sendNotice').classList.add('err');$('sendNotice').textContent=err.message}finally{$('sendBtn').disabled=false}};
 let refreshTimer=null;
 async function refresh(){const r=await api('dashboard');$('sActive').textContent=r.stats.active;$('sUrgent').textContent=r.stats.urgent;$('sToday').textContent=r.stats.notifications_today;$('sAck').textContent=r.stats.pending_ack;const ready=Boolean(r.production_ready);$('modeBadge').textContent=ready?'PRODUCTION READY':'TEST / DRILL · PROVIDER NOT CONFIGURED';$('modeBadge').style.background=ready?'#dcfce7':'#fff7ed';$('modeBadge').style.color=ready?'#166534':'#b45309';$('incidentRows').innerHTML=(r.incidents||[]).map(x=>'<tr data-id="'+x.id+'" style="cursor:pointer"><td><b>'+esc(x.incident_id)+'</b><br>'+esc(x.title)+'</td><td><span class="badge '+x.severity.toLowerCase()+'">'+esc(x.severity)+'</span></td><td><span class="badge '+(x.status==='ACTIVE'?'active':'draft')+'">'+esc(x.status)+'</span></td><td>'+new Date(x.created_at).toLocaleString('en-GB')+'</td></tr>').join('')||'<tr><td colspan="4">No incidents</td></tr>';document.querySelectorAll('#incidentRows tr[data-id]').forEach(x=>x.onclick=()=>openIncident(x.dataset.id));if(refreshTimer)clearInterval(refreshTimer);const seconds=Math.max(5,Number(systemSettings.auto_refresh_seconds||30));refreshTimer=setInterval(()=>refresh().catch(()=>{}),seconds*1000)}
