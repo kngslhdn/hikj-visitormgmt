@@ -494,6 +494,71 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (action === "resolve_incident" && req.method === "POST") {
+      if (!canConfigure(profile)) throw new Error("Incident resolution requires ADMIN, MANAGER or SUPERADMIN.");
+      const b = await req.json();
+      if (!b.incident_id) throw new Error("incident_id is required.");
+      const reason = String(b.reason || "").trim();
+      const notes = String(b.notes || "").trim();
+      const allowedReasons = new Set(["FALSE_ALARM","HANDLED","UNDER_CONTROL","EVAC_COMPLETED","TECHNICAL_RESOLVED","OTHER"]);
+      if (!allowedReasons.has(reason)) throw new Error("A valid resolution reason is required.");
+      if (!notes) throw new Error("Resolution notes are required.");
+      const current = await admin.from("emergency_incidents").select("*").eq("id", b.incident_id).single();
+      if (current.error) throw current.error;
+      if (!["ACTIVE","MONITORING"].includes(current.data.status)) throw new Error("Only ACTIVE or MONITORING incidents can be resolved.");
+      const now = new Date().toISOString();
+      const upd = await admin.from("emergency_incidents").update({
+        status: "RESOLVED",
+        resolved_at: now,
+        resolved_by: user.id,
+        resolution_reason: reason,
+        resolution_notes: notes,
+        updated_at: now,
+      }).eq("id", b.incident_id).select().single();
+      if (upd.error) throw upd.error;
+      const timeline = await admin.from("emergency_incident_updates").insert({
+        incident_id: b.incident_id,
+        status: "RESOLVED",
+        title: "Incident Resolved",
+        message: `Reason: ${reason}\n\nResolution Notes: ${notes}`,
+        created_by: user.id,
+      });
+      if (timeline.error) throw timeline.error;
+      await audit(user, profile, "RESOLVE_INCIDENT", upd.data.incident_id, `Resolved incident. reason=${reason}`);
+      return json({ ok: true, incident: upd.data });
+    }
+
+    if (action === "reopen_incident" && req.method === "POST") {
+      if (!canConfigure(profile)) throw new Error("Incident reopen requires ADMIN, MANAGER or SUPERADMIN.");
+      const b = await req.json();
+      if (!b.incident_id) throw new Error("incident_id is required.");
+      const notes = String(b.notes || "").trim();
+      if (!notes) throw new Error("Reopen notes are required.");
+      const current = await admin.from("emergency_incidents").select("*").eq("id", b.incident_id).single();
+      if (current.error) throw current.error;
+      if (!["RESOLVED","CLOSED","FALSE_ALARM"].includes(current.data.status)) throw new Error("Only resolved/closed incidents can be reopened.");
+      const now = new Date().toISOString();
+      const upd = await admin.from("emergency_incidents").update({
+        status: "ACTIVE",
+        resolved_at: null,
+        resolved_by: null,
+        resolution_reason: null,
+        resolution_notes: null,
+        updated_at: now,
+      }).eq("id", b.incident_id).select().single();
+      if (upd.error) throw upd.error;
+      const timeline = await admin.from("emergency_incident_updates").insert({
+        incident_id: b.incident_id,
+        status: "ACTIVE",
+        title: "Incident Reopened",
+        message: notes,
+        created_by: user.id,
+      });
+      if (timeline.error) throw timeline.error;
+      await audit(user, profile, "REOPEN_INCIDENT", upd.data.incident_id, "Reopened incident.");
+      return json({ ok: true, incident: upd.data });
+    }
+
     if (action === "incident_detail") {
       const id = u.searchParams.get("incident_id");
       if (!id) throw new Error("incident_id required");
