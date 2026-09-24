@@ -22,7 +22,7 @@ main{max-width:1700px;width:100%;padding:28px 30px 34px;margin:0 auto;overflow:a
 <!-- sidebar menu icons intentionally removed --></head>
 <body>
 <section id="login" class="login open"><div class="login-card"><img class="login-logo" src="../../assets/hikj-logo.svg" alt="Hotel Indonesia Kempinski Jakarta"><div class="login-brand">Emergency Response<small>EMERGENCY NOTIFICATION SYSTEM</small></div><h1>Admin Sign In</h1><p>Authorized HIKJ administrators only</p><form id="loginForm"><div class="field"><label>Email</label><input id="email" type="email" autocomplete="username" required></div><div class="field"><label>Password</label><input id="password" type="password" autocomplete="current-password" required></div><button class="login-btn" id="loginBtn" type="submit">SIGN IN</button><div id="loginErr" class="login-error"></div></form></div></section>
-<header class="top"><div style="display:flex;gap:10px;align-items:center"><button class="mobileMenu" id="mobileMenu">☰</button><div class="brand">EMERGENCY RESPONSE<small>EMERGENCY NOTIFICATION SYSTEM</small></div></div><img class="top-logo" src="../../assets/hikj-logo.svg" alt="Hotel Indonesia Kempinski Jakarta"><div id="userBox" style="font-size:10px;text-align:right"></div></header><div class="actionbar"><div class="actionbar-inner"><a href="../">Emergency Operations</a><button id="logout">Sign Out</button></div></div>
+<header class="top"><div style="display:flex;gap:10px;align-items:center"><button class="mobileMenu" id="mobileMenu" type="button">☰</button><div class="brand">EMERGENCY RESPONSE<small>EMERGENCY NOTIFICATION SYSTEM</small></div></div><img class="top-logo" src="../../assets/hikj-logo.svg" alt="Hotel Indonesia Kempinski Jakarta"><div id="userBox" style="font-size:10px;text-align:right"></div></header><div class="actionbar"><div class="actionbar-inner"><a href="../">Emergency Operations</a><button id="logout" type="button">Sign Out</button></div></div>
 <div class="layout" id="layout">
 <aside>
 <div class="navtitle">MAIN</div><nav class="nav">
@@ -63,11 +63,11 @@ main{max-width:1700px;width:100%;padding:28px 30px 34px;margin:0 auto;overflow:a
 <div class="field"><label>From Email</label><input id="smtp_from" type="email"></div>
 <div class="field"><label>From Name</label><input id="smtp_from_name"></div>
 <div class="field"><label>Reply-To</label><input id="smtp_reply_to" type="email"></div>
-</div><p class="hint" style="margin-top:12px">SMTP username and Google App Password are stored in Supabase Vault and are never stored in plaintext in emergency_settings or GitHub. For Google SMTP on Supabase Edge Functions, use port 465 with SSL; Supabase blocks outbound port 587.</p><div class="actions"><button class="btn primary" onclick="saveSmtp()">Save SMTP Settings</button><button class="btn" onclick="testSmtp()">Send Test Email</button></div><div id="smtpNotice" class="notice"></div></div></section>
+</div><p class="hint" style="margin-top:12px">SMTP username and Google App Password are stored in Supabase Vault and are never stored in plaintext in emergency_settings or GitHub. For Google SMTP on Supabase Edge Functions, use port 465 with SSL; Supabase blocks outbound port 587.</p><div class="actions"><button class="btn primary" type="button" data-action="save-smtp">Save SMTP Settings</button><button class="btn" type="button" data-action="test-smtp">Send Test Email</button></div><div id="smtpNotice" class="notice"></div></div></section>
 
 <section class="panel page-section" id="channels"><div class="panelhead"><div><h2>Notification Channels</h2><p>Operational readiness of configured notification channels</p></div></div><div class="body"><div class="table"><table><thead><tr><th>Channel</th><th>Status</th><th>Source</th><th>Notes</th></tr></thead><tbody id="channelRows"></tbody></table></div></div></section>
 
-<section class="panel page-section" id="system"><div class="panelhead"><div><h2>System Settings</h2><p>Defaults and safety controls for Emergency Operations</p></div><button class="btn primary" onclick="saveSystem()">Save System Settings</button></div><div class="body"><div class="grid">
+<section class="panel page-section" id="system"><div class="panelhead"><div><h2>System Settings</h2><p>Defaults and safety controls for Emergency Operations</p></div><button class="btn primary" type="button" data-action="save-system">Save System Settings</button></div><div class="body"><div class="grid">
 <div class="field"><label>Default Severity</label><select id="default_severity"><option>URGENT</option><option>HIGH</option><option>NORMAL</option><option>INFORMATION</option></select></div>
 <div class="field"><label>Default Incident Type</label><select id="default_incident_type_code"></select></div>
 <div class="field"><label>Default Location</label><input id="default_location"></div>
@@ -84,7 +84,7 @@ main{max-width:1700px;width:100%;padding:28px 30px 34px;margin:0 auto;overflow:a
 <section class="panel page-section" id="audit"><div class="panelhead"><div><h2>Audit Log</h2><p>Configuration and emergency activity changes. Secrets are never logged</p></div></div><div class="body"><div class="table"><table><thead><tr><th>Time</th><th>Admin</th><th>Action</th><th>Target</th><th>Description</th></tr></thead><tbody id="auditRows"></tbody></table></div></div></section>
 </main></div>
 
-<div class="modal" id="editor"><div class="modalbox"><div class="modalhead"><h2 id="editorTitle">Edit</h2><button class="btn" onclick="closeEditor()">Close</button></div><div id="editorBody"></div><div id="editorNotice" class="notice"></div></div></div>
+<div class="modal" id="editor"><div class="modalbox"><div class="modalhead"><h2 id="editorTitle">Edit</h2><button class="btn" type="button" data-action="close-editor">Close</button></div><div id="editorBody"></div><div id="editorNotice" class="notice"></div></div></div>
 
 <script>
 const U='https://hmqgmusellcetakoalva.supabase.co',K='sb_publishable_J6P-baCAZOoVxj2rHBZMkA_Ux4U5_mQ';
@@ -96,7 +96,11 @@ function setting(k,d){const x=state.settings.find(x=>x.setting_key===k);return x
 function canEdit(){return ['ADMIN','MANAGER','SUPERADMIN'].includes(state.profile?.role)}
 function superAdmin(){return state.profile?.role==='SUPERADMIN'}
 async function load(){const r=await api('settings_bootstrap');state=r;state.settings=r.settings||[];state.types=r.types||[];state.templates=r.templates||[];state.groups=r.groups||[];state.contacts=r.contacts||[];state.members=r.members||[];state.audit=r.audit||[];state.smtp=r.smtp||{};$('userBox').innerHTML='<b>'+esc(r.profile.full_name||'Admin')+'</b><br>'+esc(r.profile.role);renderAll()}
-async function save(resource,data){const r=await api('settings_mutation','POST',{resource,op:data.id?'update':'create',data});await load();return r}
+async function save(resource,data){
+  const r=await api('settings_mutation','POST',{resource,op:data.id?'update':'create',data});
+  try{await load()}catch(refreshErr){console.error('Settings refresh failed after save:',refreshErr)}
+  return r
+}
 function currentPage(){const p=new URLSearchParams(location.search).get('page');return ['types','templates','groups','contacts','smtp','channels','system','audit'].includes(p)?p:'types'}
 function setPage(){const p=currentPage();const meta={types:['Incident Types','Control the Incident Type dropdown and default severity'],templates:['Message Templates','Customize titles and emergency messages used by the Template dropdown'],groups:['Contact / WhatsApp Groups','Configure group names, WhatsApp URLs and membership'],contacts:['Emergency Contacts','Maintain people available for emergency notification'],smtp:['SMTP Email','Configure secure email delivery settings'],channels:['Notification Channels','Review the operational readiness of each notification channel'],system:['System Settings','Manage defaults and safety controls for Emergency Operations'],audit:['Audit Log','Review configuration and emergency activity changes']}[p];document.querySelectorAll('.page-section').forEach(s=>s.classList.toggle('current',s.id===p));document.querySelectorAll('[data-nav]').forEach(a=>a.classList.toggle('active',a.dataset.nav===p));$('pageTitle').textContent=meta[0];$('pageDescription').textContent=meta[1];}
 function renderAll(){renderTypes();renderTemplates();renderGroups();renderContacts();renderChannels();renderAudit();renderSystem();fillSmtp();setPage()}
@@ -153,7 +157,7 @@ window.addEventListener('popstate',()=>setPage());$('mobileMenu').onclick=()=>$(
     notice.textContent=err?.message||String(err);
   }
 });
-document.addEventListener('click',e=>{
+document.addEventListener('click',async e=>{
   const btn=e.target.closest('[data-action]');
   if(!btn)return;
   const action=btn.dataset.action;
@@ -168,10 +172,14 @@ document.addEventListener('click',e=>{
     else if(action==='members')openMembers(id);
     else if(action==='add-contact')openContact();
     else if(action==='edit-contact')openContact(id);
+    else if(action==='close-editor')closeEditor();
+    else if(action==='save-smtp')await saveSmtp();
+    else if(action==='test-smtp')await testSmtp();
+    else if(action==='save-system')await saveSystem();
   }catch(err){
     console.error('Emergency Settings action failed:',err);
-    const n=$('editorNotice');
-    if(n)n.textContent=err?.message||String(err);
+    const n=$('editorNotice')||$('systemNotice')||$('smtpNotice');
+    if(n){n.classList.add('err');n.textContent=err?.message||String(err)}
   }
 });
 setPage();
