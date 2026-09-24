@@ -28,9 +28,15 @@ async function findExitEntry(pass:string){
 }
 
 async function publicSettings(){
- const {data,error}=await supabase.from('app_settings').select('setting_key,setting_value,active').in('setting_key',['whatsapp','operations']);
+ const {data,error}=await supabase.from('app_settings').select('setting_key,setting_value,active').in('setting_key',['whatsapp','whatsapp_recipients','operations']);
  if(error)throw error;
- return Object.fromEntries((data||[]).map((x:any)=>[x.setting_key,x.setting_value]));
+ const out=Object.fromEntries((data||[]).map((x:any)=>[x.setting_key,x.setting_value]));
+ // The existing production schema uses whatsapp_recipients; normalize it to the public whatsapp shape.
+ if(!out.whatsapp){
+   const legacy=Array.isArray(out.whatsapp_recipients)?out.whatsapp_recipients[0]:out.whatsapp_recipients;
+   if(legacy)out.whatsapp={recipient_name:legacy.name||'HIKJ Security',phone_number:legacy.phone||''};
+ }
+ return out;
 }
 
 async function uploadPackagePhoto(dataUrl:string){
