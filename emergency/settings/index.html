@@ -46,13 +46,13 @@ main{max-width:1700px;width:100%;padding:28px 30px 34px;margin:0 auto;overflow:a
 <main>
 <div class="hero"><div><div class="security-label">HIKJ SECURITY</div><h1 id="pageTitle">Emergency Settings</h1><p id="pageDescription">Configure the HIKJ Emergency Notification System without editing code</p></div></div>
 
-<section class="panel page-section" id="types"><div class="panelhead"><div><h2>Incident Types</h2><p>Control the Incident Type dropdown and default severity</p></div><button class="btn primary" onclick="openType()">+ Add Type</button></div><div class="body"><div class="table"><table><thead><tr><th>Code</th><th>Name</th><th>Default Severity</th><th>Priority</th><th>Status</th><th></th></tr></thead><tbody id="typeRows"></tbody></table></div></div></section>
+<section class="panel page-section" id="types"><div class="panelhead"><div><h2>Incident Types</h2><p>Control the Incident Type dropdown and default severity</p></div><button class="btn primary" type="button" data-action="add-type">+ Add Type</button></div><div class="body"><div class="table"><table><thead><tr><th>Code</th><th>Name</th><th>Default Severity</th><th>Priority</th><th>Status</th><th></th></tr></thead><tbody id="typeRows"></tbody></table></div></div></section>
 
-<section class="panel page-section" id="templates"><div class="panelhead"><div><h2>Message Templates</h2><p>Customize titles and emergency messages used by the Template dropdown</p></div><button class="btn primary" onclick="openTemplate()">+ Add Template</button></div><div class="body"><div class="table"><table><thead><tr><th>Code</th><th>Name</th><th>Incident Type</th><th>Severity</th><th>Status</th><th></th></tr></thead><tbody id="templateRows"></tbody></table></div></div></section>
+<section class="panel page-section" id="templates"><div class="panelhead"><div><h2>Message Templates</h2><p>Customize titles and emergency messages used by the Template dropdown</p></div><button class="btn primary" type="button" data-action="add-template">+ Add Template</button></div><div class="body"><div class="table"><table><thead><tr><th>Code</th><th>Name</th><th>Incident Type</th><th>Severity</th><th>Status</th><th></th></tr></thead><tbody id="templateRows"></tbody></table></div></div></section>
 
-<section class="panel page-section" id="groups"><div class="panelhead"><div><h2>Contact / WhatsApp Groups</h2><p>Configure group names, WhatsApp URLs and membership</p></div><button class="btn primary" onclick="openGroup()">+ Add Group</button></div><div class="body"><div class="table"><table><thead><tr><th>Code</th><th>Group</th><th>WhatsApp</th><th>Members</th><th>Status</th><th></th></tr></thead><tbody id="groupRows"></tbody></table></div></div></section>
+<section class="panel page-section" id="groups"><div class="panelhead"><div><h2>Contact / WhatsApp Groups</h2><p>Configure group names, WhatsApp URLs and membership</p></div><button class="btn primary" type="button" data-action="add-group">+ Add Group</button></div><div class="body"><div class="table"><table><thead><tr><th>Code</th><th>Group</th><th>WhatsApp</th><th>Members</th><th>Status</th><th></th></tr></thead><tbody id="groupRows"></tbody></table></div></div></section>
 
-<section class="panel page-section" id="contacts"><div class="panelhead"><div><h2>Emergency Contacts</h2><p>Maintain people available for emergency notification</p></div><button class="btn primary" onclick="openContact()">+ Add Contact</button></div><div class="body"><div class="table"><table><thead><tr><th>Name</th><th>Department / Position</th><th>Email</th><th>WhatsApp</th><th>Priority</th><th>Status</th><th></th></tr></thead><tbody id="contactRows"></tbody></table></div></div></section>
+<section class="panel page-section" id="contacts"><div class="panelhead"><div><h2>Emergency Contacts</h2><p>Maintain people available for emergency notification</p></div><button class="btn primary" type="button" data-action="add-contact">+ Add Contact</button></div><div class="body"><div class="table"><table><thead><tr><th>Name</th><th>Department / Position</th><th>Email</th><th>WhatsApp</th><th>Priority</th><th>Status</th><th></th></tr></thead><tbody id="contactRows"></tbody></table></div></div></section>
 
 <section class="panel page-section" id="smtp"><div class="panelhead"><div><h2>SMTP Email</h2><p>Configure email delivery metadata. SMTP credentials remain protected server-side in Supabase Vault</p></div><span id="smtpStatus" class="badge off">CHECKING</span></div><div class="body"><div class="grid">
 <div class="field"><label>SMTP Host</label><input id="smtp_host"></div>
@@ -123,6 +123,27 @@ async function testSmtp(){if(!superAdmin()){alert('SMTP test requires SUPERADMIN
 $('loginForm').onsubmit=async e=>{e.preventDefault();$('loginBtn').disabled=true;try{const {data,error}=await sb.auth.signInWithPassword({email:$('email').value.trim(),password:$('password').value});if(error)throw error;if(!data.session)throw Error('No session returned');session=data.session;$('login').classList.remove('open');await load()}catch(e){$('loginErr').textContent=e.message}finally{$('loginBtn').disabled=false}};
 $('logout').onclick=async()=>{await sb.auth.signOut();location.href='../'};
 sb.auth.getSession().then(async x=>{if(x.data.session){session=x.data.session;try{$('login').classList.remove('open');await load()}catch(e){$('loginErr').textContent=e.message}}});
-window.addEventListener('popstate',()=>setPage());$('mobileMenu').onclick=()=>$('layout').classList.toggle('open');$('editor').addEventListener('click',e=>{if(e.target===$('editor'))closeEditor()});document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('editor').classList.contains('open'))closeEditor()});setPage();
+window.addEventListener('popstate',()=>setPage());$('mobileMenu').onclick=()=>$('layout').classList.toggle('open');$('editor').addEventListener('click',e=>{if(e.target===$('editor'))closeEditor()});document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('editor').classList.contains('open'))closeEditor()});document.addEventListener('click',e=>{
+  const btn=e.target.closest('[data-action]');
+  if(!btn)return;
+  const action=btn.dataset.action;
+  const id=btn.dataset.id;
+  try{
+    if(action==='add-type')openType();
+    else if(action==='edit-type')openType(id);
+    else if(action==='add-template')openTemplate();
+    else if(action==='edit-template')openTemplate(id);
+    else if(action==='add-group')openGroup();
+    else if(action==='edit-group')openGroup(id);
+    else if(action==='members')openMembers(id);
+    else if(action==='add-contact')openContact();
+    else if(action==='edit-contact')openContact(id);
+  }catch(err){
+    console.error('Emergency Settings action failed:',err);
+    const n=$('editorNotice');
+    if(n)n.textContent=err?.message||String(err);
+  }
+});
+setPage();
 </script>
 </body></html>
