@@ -53,7 +53,7 @@ main{max-width:1700px;margin:0 auto;padding:28px 30px 34px}.hero{display:flex;ju
 </style>
 </head>
 <body>
-<section id="login" class="login"><div class="login-card">
+<section id="login" class="login hidden"><div class="login-card">
 <img class="login-logo" src="../assets/hikj-logo.svg" alt="Hotel Indonesia Kempinski Jakarta">
 <div class="login-brand">Emergency Response<small>EMERGENCY NOTIFICATION SYSTEM</small></div>
 <h1>Admin Sign In</h1><p>Authorized ERT personnel only</p>
@@ -109,9 +109,13 @@ const sb=window.supabase.createClient(U,K),API=U+'/functions/v1/emergency-api';
 const $=id=>document.getElementById(id), esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
 let session=null, types=[], templates=[], contacts=[], groups=[], systemSettings={};
 async function api(action,method='GET',body=null,query=null){const qs=new URLSearchParams({action,...(query||{})});const r=await fetch(API+'?'+qs.toString(),{method,headers:{apikey:K,Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});const j=await r.json().catch(()=>({}));if(!r.ok)throw Error(j.error||'Request failed');return j}
-async function enter(s){session=s;try{const me=await api('me');$('userName').textContent=me.profile?.full_name||s.user.email;$('userRole').textContent=me.profile?.role||'ADMIN';$('login').classList.add('hidden');$('app').classList.remove('hidden');await boot()}catch(e){$('loginErr').textContent=e.message;await sb.auth.signOut()}}
-$('loginForm').onsubmit=async e=>{e.preventDefault();$('loginBtn').disabled=true;try{const {data,error}=await sb.auth.signInWithPassword({email:$('email').value.trim(),password:$('password').value});if(error)throw error;if(!data.session)throw Error('No session returned');await enter(data.session)}catch(e){$('loginErr').textContent=e.message}finally{$('loginBtn').disabled=false}};
-$('logout').onclick=async()=>{await sb.auth.signOut();location.reload()};sb.auth.getSession().then(x=>x.data.session&&enter(x.data.session));
+function showLogin(message=''){$('app').classList.add('hidden');$('login').classList.remove('hidden');$('loginErr').textContent=message}
+async function enter(s){session=s;try{const me=await api('me');$('userName').textContent=me.profile?.full_name||s.user.email;$('userRole').textContent=me.profile?.role||'ADMIN';$('login').classList.add('hidden');$('app').classList.remove('hidden');await boot()}catch(e){console.error('Emergency bootstrap failed:',e);await sb.auth.signOut();showLogin('Session could not be validated. Please sign in again.')}}
+async function initAuth(){const {data,error}=await sb.auth.getSession();if(error||!data.session){showLogin(error?.message||'Please sign in to continue');return}await enter(data.session)}
+$('loginForm').onsubmit=async e=>{e.preventDefault();$('loginBtn').disabled=true;try{const {data,error}=await sb.auth.signInWithPassword({email:$('email').value.trim(),password:$('password').value});if(error)throw error;if(!data.session)throw Error('No session returned');await enter(data.session)}catch(e){showLogin(e.message)}finally{$('loginBtn').disabled=false}};
+$('logout').onclick=async()=>{await sb.auth.signOut();showLogin('Signed out successfully')};
+sb.auth.onAuthStateChange((event,s)=>{if(event==='SIGNED_OUT'){showLogin('Your session has ended. Please sign in again')}else if(event==='SIGNED_IN'&&s){setTimeout(()=>enter(s),0)}});
+
 async function boot(){const r=await api('bootstrap');types=r.types||[];templates=r.templates||[];contacts=r.contacts||[];groups=r.groups||[];systemSettings=Object.fromEntries((r.settings||[]).map(x=>[x.setting_key,x.setting_value]));renderTypes();renderTemplates();renderRecipients();renderGroups();applyDefaults();await refresh();syncSidebar();if(location.hash){const el=$(location.hash.slice(1));if(el)setTimeout(()=>el.scrollIntoView({block:'start'}),50)}}
 function renderTypes(){$('type').innerHTML='<option value="">Select</option>'+types.map(x=>'<option value="'+x.id+'">'+esc(x.name)+'</option>').join('');$('type').onchange=()=>{const t=types.find(x=>x.id===$('type').value);if(t){const r=document.querySelector('input[name=severity][value="'+(t.default_severity||'URGENT')+'"]');if(r)r.checked=true}}}
 function renderTemplates(){$('template').innerHTML='<option value="">Custom message</option>'+templates.map(x=>'<option value="'+x.id+'">'+esc(x.name)+'</option>').join('')}
@@ -236,5 +240,6 @@ window.addEventListener('hashchange',()=>{
 });
 syncSidebar();
 if(location.hash)scrollToSection(location.hash.slice(1),'auto');
+initAuth();
 </script>
 </body></html>
