@@ -196,10 +196,23 @@ $('sendBtn').disabled=true;try{const sev=document.querySelector('input[name=seve
 const dispatches=Array.isArray(r.whatsapp?.dispatches)?r.whatsapp.dispatches:[];
 if(dispatches.length){
   const first=dispatches[0];
-  const message=String(first.message||'');
+  const inc=r.incident||{};
+  const generatedMessage=[
+    inc.test_mode ? '🧪 HIKJ EMERGENCY TEST / DRILL' : '🚨 HIKJ EMERGENCY',
+    '',
+    'Incident: '+(inc.incident_id||'-'),
+    'Severity: '+(inc.severity||'-'),
+    'Title: '+(inc.title||'-'),
+    'Location: '+(inc.location||'-'),
+    '',
+    inc.description||'',
+    '',
+    'Time: '+(inc.created_at?new Date(inc.created_at).toLocaleString('en-GB',{timeZone:'Asia/Jakarta'}):new Date().toLocaleString('en-GB',{timeZone:'Asia/Jakarta'}))
+  ].join('\n');
+  const message=String(first.message||generatedMessage).trim();
   $('waMessage').value=message;
-  $('waStatus').textContent=dispatches.length===1?'WhatsApp group opened. The message is ready below — copy it and paste into the group.':'WhatsApp groups opened. Copy the message below and paste it into each group.';
-  try{await navigator.clipboard.writeText(message);$('waStatus').textContent+=' Message copied to clipboard.'}catch(_){/* clipboard may require permission */}
+  $('waStatus').textContent=dispatches.length===1?'WhatsApp group opened. The complete emergency message is shown below.':'WhatsApp groups opened. The complete emergency message is shown below.';
+  try{await navigator.clipboard.writeText(message);$('waStatus').textContent+=' Message copied to clipboard.'}catch(_){};
   dispatches.forEach((d,i)=>{const w=waWindows[i]||window.open('about:blank','_blank');if(!w)return;try{w.location.href=d.url}catch(_){w.close();window.open(d.url,'_blank')}});
   $('waModal').classList.add('open');
   $('sendNotice').classList.remove('err');
