@@ -95,8 +95,8 @@ async function settingsAction(req:Request,a:any,action:string){
   if(action==='save_whatsapp'){
     const b=await req.json(),phone=String(b.phone_number||'').replace(/[^0-9]/g,'');
     if(!/^62[0-9]{8,15}$/.test(phone))return json(req,{error:'Invalid WhatsApp number'},400);
-    const value={recipient_name:String(b.recipient_name||'HIKJ Security').trim(),phone_number:phone};
-    let {error}=await sb.from('app_settings').update({setting_value:value,updated_by:a.user.id}).eq('setting_key','whatsapp_recipients');
+    const value=[{name:String(b.recipient_name||'HIKJ Security').trim(),phone}];
+    const {error}=await sb.from('app_settings').update({setting_value:value,updated_by:a.user.id}).eq('setting_key','whatsapp_recipients');
     if(error)throw error;await audit(a,'UPDATE','WhatsApp','whatsapp',`Changed recipient number to ${phone}`);return json(req,{ok:true});
   }
   if(action==='save_operations'){
