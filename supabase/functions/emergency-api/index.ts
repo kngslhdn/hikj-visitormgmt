@@ -549,7 +549,7 @@ Deno.serve(async (req) => {
             "",
             `Resolved by: ${profile.full_name || user.email}`,
             `Resolved at: ${new Date(now).toLocaleString("en-GB", { timeZone: "Asia/Jakarta" })}`,
-          ].join("\\n"),
+          ].join("\n"),
         }));
 
       for (const g of resolutionDispatches) {
