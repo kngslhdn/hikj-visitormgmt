@@ -290,7 +290,22 @@ async function openIncident(id){
 function showResolveForm(i){
   $('mBody').innerHTML='<h3>Resolve Incident</h3><p><b>'+esc(i.incident_id)+'</b> · '+esc(i.title)+'</p><label style="display:block;margin:12px 0 6px;font-weight:700">Resolution Reason *</label><select id="resolutionReason" style="width:100%;padding:10px;border:1px solid #d6dde5;border-radius:8px"><option value="">Select reason</option><option value="FALSE_ALARM">False Alarm</option><option value="HANDLED">Incident Handled</option><option value="UNDER_CONTROL">Situation Under Control</option><option value="EVAC_COMPLETED">Evacuation Completed</option><option value="TECHNICAL_RESOLVED">Technical Issue Resolved</option><option value="OTHER">Other</option></select><label style="display:block;margin:12px 0 6px;font-weight:700">Resolution Notes *</label><textarea id="resolutionNotes" style="width:100%;min-height:120px;padding:10px;border:1px solid #d6dde5;border-radius:8px" placeholder="Describe what happened, action taken, and why the incident is considered resolved."></textarea><div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px"><button class="btn" id="cancelResolve">Cancel</button><button class="btn primary" id="confirmResolve">RESOLVE INCIDENT</button></div>';
   $('cancelResolve').onclick=()=>openIncident(i.id);
-  $('confirmResolve').onclick=async()=>{const reason=$('resolutionReason').value,notes=$('resolutionNotes').value.trim();if(!reason){alert('Resolution reason is required.');return}if(!notes){alert('Resolution notes are required.');return}$('confirmResolve').disabled=true;try{await api('resolve_incident','POST',{incident_id:i.id,reason,notes});await refresh();await openIncident(i.id)}catch(e){alert(e.message||String(e));$('confirmResolve').disabled=false}};
+  $('confirmResolve').onclick=async()=>{const reason=$('resolutionReason').value,notes=$('resolutionNotes').value.trim();if(!reason){alert('Resolution reason is required.');return}if(!notes){alert('Resolution notes are required.');return}$('confirmResolve').disabled=true;try{
+    const result=await api('resolve_incident','POST',{incident_id:i.id,reason,notes});
+    const dispatches=Array.isArray(result.whatsapp?.dispatches)?result.whatsapp.dispatches:[];
+    currentWaDispatches=dispatches;
+    if(dispatches.length){
+      const message=String(dispatches[0].message||'').trim();
+      $('waMessage').value=message;
+      $('waStatus').textContent=dispatches.length===1
+        ? 'Incident resolved. Resolution message copied — open the WhatsApp group and paste/send it.'
+        : 'Incident resolved. Resolution message copied — open each WhatsApp group and paste/send it.';
+      try{await navigator.clipboard.writeText(message);$('waStatus').textContent+=' Message copied to clipboard.'}catch(_){}
+      $('waModal').classList.add('open');
+    }
+    await refresh();
+    await openIncident(i.id);
+  }catch(e){alert(e.message||String(e));$('confirmResolve').disabled=false}};
 }
 function showReopenForm(i){
   $('mBody').innerHTML='<h3>Reopen Incident</h3><p><b>'+esc(i.incident_id)+'</b> · '+esc(i.title)+'</p><label style="display:block;margin:12px 0 6px;font-weight:700">Reopen Notes *</label><textarea id="reopenNotes" style="width:100%;min-height:120px;padding:10px;border:1px solid #d6dde5;border-radius:8px" placeholder="Why does this incident need to be reopened?"></textarea><div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px"><button class="btn" id="cancelReopen">Cancel</button><button class="btn primary" id="confirmReopen">REOPEN INCIDENT</button></div>';
