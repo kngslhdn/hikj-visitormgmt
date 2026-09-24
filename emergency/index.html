@@ -108,7 +108,7 @@ main{max-width:1700px;margin:0 auto;padding:28px 30px 34px}.hero{display:flex;ju
 const U='https://hmqgmusellcetakoalva.supabase.co',K='sb_publishable_J6P-baCAZOoVxj2rHBZMkA_Ux4U5_mQ';
 const sb=window.supabase.createClient(U,K,{auth:{persistSession:true,autoRefreshToken:true,storageKey:'sb-hmqgmusellcetakoalva-auth-token'}}),API=U+'/functions/v1/emergency-api';
 const $=id=>document.getElementById(id), esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
-let session=null, types=[], templates=[], contacts=[], groups=[], systemSettings={};
+let session=null, types=[], templates=[], contacts=[], groups=[], systemSettings={}, currentWaDispatches=[];
 async function api(action,method='GET',body=null,query=null){const qs=new URLSearchParams({action,...(query||{})});const r=await fetch(API+'?'+qs.toString(),{method,headers:{apikey:K,Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});const j=await r.json().catch(()=>({}));if(!r.ok)throw Error(j.error||'Request failed');return j}
 function showLogin(message=''){$('app').classList.add('hidden');$('login').classList.remove('hidden');$('loginErr').textContent=message}
 async function enter(s){session=s;try{const me=await api('me');$('userName').textContent=me.profile?.full_name||s.user.email;$('userRole').textContent=me.profile?.role||'ADMIN';$('login').classList.add('hidden');$('app').classList.remove('hidden');await boot()}catch(e){console.error('Emergency bootstrap failed:',e);await sb.auth.signOut();showLogin('Session could not be validated. Please sign in again.')}}
@@ -194,6 +194,7 @@ $('sendBtn').disabled=true;try{const sev=document.querySelector('input[name=seve
 
 // Open each configured WhatsApp group with the generated emergency message.
 const dispatches=Array.isArray(r.whatsapp?.dispatches)?r.whatsapp.dispatches:[];
+currentWaDispatches=dispatches;
 if(dispatches.length){
   const first=dispatches[0];
   const inc=r.incident||{};
@@ -274,7 +275,13 @@ async function openIncident(id){const r=await api('incident_detail','GET',null,{
 $('mClose').onclick=()=>$('modal').classList.remove('open');
 $('waClose').onclick=()=>$('waModal').classList.remove('open');
 $('waCopy').onclick=async()=>{try{await navigator.clipboard.writeText($('waMessage').value);$('waStatus').textContent='Message copied to clipboard. Open WhatsApp and paste it into the group.'}catch(e){$('waMessage').focus();$('waMessage').select();$('waStatus').textContent='Clipboard permission blocked. Press Ctrl+C, then paste the message into WhatsApp.'}};
-$('waOpen').onclick=()=>{const u=(r?.whatsapp?.dispatches?.[0]?.url||'');if(u)window.open(u,'_blank')};
+$('waOpen').onclick=async()=>{
+  const d=currentWaDispatches[0];
+  if(!d?.url){$('waStatus').textContent='WhatsApp group URL is not configured for this recipient.';return}
+  const msg=$('waMessage').value||String(d.message||'');
+  try{await navigator.clipboard.writeText(msg);$('waStatus').textContent='Message copied. WhatsApp group is opening — paste with Ctrl+V, then press Send.'}catch(_){$('waStatus').textContent='WhatsApp group is opening. If needed, use Copy Message, then paste with Ctrl+V.'}
+  window.open(d.url,'_blank');
+};
 $('refresh').onclick=refresh;
 $('refreshHistory').onclick=refresh;
 window.addEventListener('hashchange',()=>{
