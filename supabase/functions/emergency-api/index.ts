@@ -100,14 +100,19 @@ async function smtpSettings() {
 }
 
 async function audit(user: any, profile: any, action: string, target: string, description: string) {
-  await admin.from("audit_logs").insert({
-    user_id: user.id,
-    user_name: profile.full_name || user.email,
-    module: "EMERGENCY",
-    action,
-    target,
-    description,
-  });
+  try {
+    const { error } = await admin.from("audit_logs").insert({
+      user_id: user.id,
+      user_name: profile.full_name || user.email,
+      module: "EMERGENCY",
+      action,
+      target,
+      description,
+    });
+    if (error) console.error("Emergency audit log write failed:", error);
+  } catch (e) {
+    console.error("Emergency audit log exception:", e);
+  }
 }
  
 async function selectedGroups(groupIds: string[]) {
