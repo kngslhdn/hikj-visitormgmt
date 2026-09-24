@@ -80,16 +80,23 @@ async function audit(a:any,action:string,module:string,target:string,description
   await sb.from('audit_logs').insert({user_id:a.user.id,user_name:a.profile?.full_name||a.user.email,action,module,target:target||null,description:description||null});
 }
 async function settingsData(){
-  const {data,error}=await sb.from('app_settings').select('setting_key,setting_value,active,updated_at').in('setting_key',['whatsapp','operations']);
+  const {data,error}=await sb.from('app_settings').select('setting_key,setting_value,active,updated_at').in('setting_key',['whatsapp','whatsapp_recipients','operations']);
   if(error)throw error;
-  return Object.fromEntries((data||[]).map((x:any)=>[x.setting_key,x.setting_value]));
+  const out=Object.fromEntries((data||[]).map((x:any)=>[x.setting_key,x.setting_value]));
+  // Backward compatibility: production DB uses whatsapp_recipients.
+  if(!out.whatsapp){
+    const legacy=Array.isArray(out.whatsapp_recipients)?out.whatsapp_recipients[0]:out.whatsapp_recipients;
+    if(legacy)out.whatsapp={recipient_name:legacy.name||'HIKJ Security',phone_number:legacy.phone||''};
+  }
+  return out;
 }
 async function settingsAction(req:Request,a:any,action:string){
   if(action==='settings'){return json(req,{settings:await settingsData()})}
   if(action==='save_whatsapp'){
     const b=await req.json(),phone=String(b.phone_number||'').replace(/[^0-9]/g,'');
     if(!/^62[0-9]{8,15}$/.test(phone))return json(req,{error:'Invalid WhatsApp number'},400);
-    const {error}=await sb.from('app_settings').update({setting_value:{recipient_name:String(b.recipient_name||'HIKJ Security').trim(),phone_number:phone},updated_by:a.user.id}).eq('setting_key','whatsapp');
+    const value={recipient_name:String(b.recipient_name||'HIKJ Security').trim(),phone_number:phone};
+    let {error}=await sb.from('app_settings').update({setting_value:value,updated_by:a.user.id}).eq('setting_key','whatsapp_recipients');
     if(error)throw error;await audit(a,'UPDATE','WhatsApp','whatsapp',`Changed recipient number to ${phone}`);return json(req,{ok:true});
   }
   if(action==='save_operations'){
