@@ -55,7 +55,7 @@ document.getElementById('logout').onclick=async()=>{await sb.auth.signOut();show
 sb.auth.onAuthStateChange((event,s)=>{if(event==='SIGNED_OUT')showLogin('Your session has ended. Please sign in again');else if(event==='SIGNED_IN'&&s)setTimeout(()=>enter(s).catch(e=>showLogin('Session could not be validated. Please sign in again.')),0)});
 initAuth();
 </script>
-<script src="admin-console-v2.js?v=24"></script>
+<script src="admin-console-v2.js?v=25"></script>
 <style id="kempinski-display-font">
 /* Luxury editorial display typography inspired by the Kempinski reference */
 .a-head h1,
