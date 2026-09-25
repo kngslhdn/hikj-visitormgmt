@@ -9,6 +9,25 @@ const normText=(v:unknown)=>clean(v).toLowerCase().replace(/\s+/g,' ');
 const types:Record<string,string>={entry:'visitor_entry',masuk:'visitor_entry',exit:'visitor_exit',keluar:'visitor_exit',borrowing:'key_borrowing',pinjamKunci:'key_borrowing',return:'key_return',kembaliKunci:'key_return',package:'package_registration',paket:'package_registration',key_asset_lookup:'key_asset_lookup'};
 const val=(b:any,...keys:string[])=>keys.map(k=>b[k]).find(v=>v!==undefined&&v!==null&&String(v).trim()!=='')??'';
 
+// SecureOps P1 hardening: lightweight per-edge rate limiting for the public submission endpoint.
+// This is defense-in-depth; for globally coordinated limits, place the endpoint behind a
+// durable rate limiter such as Upstash/Cloudflare as traffic grows.
+const RATE_LIMIT_WINDOW_MS=60_000;
+const RATE_LIMIT_MAX=60;
+const rateBuckets=new Map<string,{count:number,resetAt:number}>();
+function clientKey(req:Request){
+ const forwarded=req.headers.get('x-forwarded-for')||req.headers.get('cf-connecting-ip')||'';
+ return (forwarded.split(',')[0]||'unknown').trim().slice(0,100);
+}
+function rateLimit(req:Request){
+ const now=Date.now(),key=clientKey(req);let bucket=rateBuckets.get(key);
+ if(!bucket||now>=bucket.resetAt){bucket={count:0,resetAt:now+RATE_LIMIT_WINDOW_MS};rateBuckets.set(key,bucket);}
+ bucket.count++;
+ if(bucket.count>RATE_LIMIT_MAX)return {allowed:false,retryAfter:Math.max(1,Math.ceil((bucket.resetAt-now)/1000))};
+ if(rateBuckets.size>5000){for(const [k,b] of rateBuckets)if(now>=b.resetAt)rateBuckets.delete(k);}
+ return {allowed:true,retryAfter:0};
+}
+
 function timestamp(_v:unknown){
  return new Date().toISOString();
 }
@@ -44,8 +63,9 @@ async function uploadPackagePhoto(dataUrl:string){
 }
 
 Deno.serve(async req=>{
- if(req.method==='OPTIONS')return new Response(null,{status:204,headers:cors});if(req.method!=='POST')return json({error:'Method not allowed'},405);
+ if(req.method==='OPTIONS')return new Response(null,{status:204,headers:cors});if(req.method!=='POST')return json({error:'Method not allowed'},405);const limit=rateLimit(req);if(!limit.allowed)return new Response(JSON.stringify({error:'Too many requests. Please wait and try again.'}),{status:429,headers:{...cors,'Content-Type':'application/json','Retry-After':String(limit.retryAfter)}});
  try{
+  const contentLength=Number(req.headers.get('content-length')||0);if(contentLength>8*1024*1024)return json({error:'Request payload is too large.'},413);
   const body=await req.json();const rawType=clean(body.type||body.form_type),type=types[rawType]||rawType;if(!['visitor_entry','visitor_exit','key_borrowing','key_return','package_registration','key_asset_lookup'].includes(type))return json({error:'Invalid submission type'},400);const settings=await publicSettings();const ops=settings.operations||{};const enabledByType:Record<string,string>={visitor_entry:'visitor_entry_enabled',visitor_exit:'visitor_exit_enabled',key_borrowing:'key_borrowing_enabled',key_return:'key_return_enabled',package_registration:'package_registration_enabled'};if(enabledByType[type]&&ops[enabledByType[type]]===false)return json({error:'This service is currently disabled by Security Administration.'},403);
   if(type==='key_asset_lookup'){
    const key=clean(body.key_number||body.keyNumber);
