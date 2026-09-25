@@ -6,6 +6,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../../assets/secureops-config.js"></script>
 <style>
 :root{--navy:#071a30;--navy2:#102d4b;--gold:#c99a3d;--bg:#f5f7fa;--card:#fff;--line:#e1e7ee;--text:#111827;--muted:#64748b;--red:#b91c1c;--amber:#b45309;--green:#166534;--shadow:0 8px 24px rgba(7,26,48,.06)}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px Poppins,Arial,sans-serif}.hidden{display:none!important}\n.auth-pending{visibility:hidden!important;pointer-events:none!important}
@@ -87,7 +88,7 @@ main{max-width:1700px;width:100%;padding:28px 30px 34px;margin:0 auto;overflow:a
 <div class="modal" id="editor"><div class="modalbox"><div class="modalhead"><h2 id="editorTitle">Edit</h2><button class="btn" type="button" data-action="close-editor">Close</button></div><div id="editorBody"></div><div id="editorNotice" class="notice"></div></div></div>
 
 <script>
-const U='https://hmqgmusellcetakoalva.supabase.co',K='sb_publishable_J6P-baCAZOoVxj2rHBZMkA_Ux4U5_mQ';
+const U=window.SECUREOPS_CONFIG.SUPABASE_URL,K='sb_publishable_J6P-baCAZOoVxj2rHBZMkA_Ux4U5_mQ';
 const sb=window.supabase.createClient(U,K,{auth:{persistSession:true,autoRefreshToken:true,storageKey:'sb-hmqgmusellcetakoalva-auth-token'}}),API=U+'/functions/v1/emergency-api';
 const $=id=>document.getElementById(id),esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
 let session=null,state={types:[],templates:[],groups:[],contacts:[],members:[],settings:[],audit:[],smtp:{},profile:{}};
