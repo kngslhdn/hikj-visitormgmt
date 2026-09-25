@@ -13,22 +13,23 @@ async function properties(token){
  const r=await req('property_settings');if(!current(token))return;
  const rows=r.data||[];
  if(!rows.length){$('sContent').innerHTML=card('Property Profile','No property is configured','<div class="s-note">Create a property record before configuring Property Settings.</div>');return}
- $('sContent').innerHTML=rows.map((p,i)=>card(
+ const role=String(window.HIKJAdminRole||'').toUpperCase(),canEdit=role==='SUPERADMIN'||role==='MANAGER';
+$('sContent').innerHTML=rows.map((p,i)=>card(
    p.property_name||p.property_code||'Property',
    'Property Profile • '+(p.property_code||'—'),
    `<div class="s-grid">
     <div class="s-field"><label>Property Code</label><input value="${esc(p.property_code||'')}" readonly disabled></div>
-    <div class="s-field"><label>Property Name</label><input id="prop_name_${i}" value="${esc(p.property_name||'')}" maxlength="160"></div>
-    <div class="s-field"><label>Address</label><input id="prop_address_${i}" value="${esc(p.address||'')}" maxlength="255"></div>
-    <div class="s-field"><label>Timezone</label><input id="prop_timezone_${i}" value="${esc(p.timezone||'Asia/Jakarta')}" placeholder="Asia/Jakarta"></div>
-    <div class="s-field"><label>Logo URL</label><input id="prop_logo_${i}" value="${esc(p.logo_url||'')}" maxlength="500" placeholder="/property-assets/HIKJ/logo.svg"></div>
-    <div class="s-field"><label>Status</label><select id="prop_active_${i}"><option value="true" ${p.is_active?'selected':''}>ACTIVE</option><option value="false" ${!p.is_active?'selected':''}>INACTIVE</option></select></div>
-    <div class="s-field"><label>Primary Color</label><div class="s-color-row"><input class="s-color" id="prop_primary_color_${i}" type="color" value="${/^#[0-9A-F]{6}$/i.test(p.primary_color||'')?p.primary_color:'#0B2239'}"><input id="prop_primary_text_${i}" value="${esc(p.primary_color||'#0B2239')}" maxlength="7"></div></div>
-    <div class="s-field"><label>Secondary Color</label><div class="s-color-row"><input class="s-color" id="prop_secondary_color_${i}" type="color" value="${/^#[0-9A-F]{6}$/i.test(p.secondary_color||'')?p.secondary_color:'#1677A8'}"><input id="prop_secondary_text_${i}" value="${esc(p.secondary_color||'#1677A8')}" maxlength="7"></div></div>
+    <div class="s-field"><label>Property Name</label><input id="prop_name_${i}" value="${esc(p.property_name||'')}" maxlength="160" ${canEdit?'':'readonly disabled'}></div>
+    <div class="s-field"><label>Address</label><input id="prop_address_${i}" value="${esc(p.address||'')}" maxlength="255" ${canEdit?'':'readonly disabled'}></div>
+    <div class="s-field"><label>Timezone</label><input id="prop_timezone_${i}" value="${esc(p.timezone||'Asia/Jakarta')}" placeholder="Asia/Jakarta" ${canEdit?'':'readonly disabled'}></div>
+    <div class="s-field"><label>Logo URL</label><input id="prop_logo_${i}" value="${esc(p.logo_url||'')}" maxlength="500" placeholder="/property-assets/HIKJ/logo.svg" ${canEdit?'':'readonly disabled'}></div>
+    <div class="s-field"><label>Status</label><select id="prop_active_${i}" ${canEdit?'':'disabled'}><option value="true" ${p.is_active?'selected':''}>ACTIVE</option><option value="false" ${!p.is_active?'selected':''}>INACTIVE</option></select></div>
+    <div class="s-field"><label>Primary Color</label><div class="s-color-row"><input class="s-color" id="prop_primary_color_${i}" type="color" value="${/^#[0-9A-F]{6}$/i.test(p.primary_color||'')?p.primary_color:'#0B2239'}" ${canEdit?'':'disabled'}><input id="prop_primary_text_${i}" value="${esc(p.primary_color||'#0B2239')}" maxlength="7" ${canEdit?'':'readonly disabled'}></div></div>
+    <div class="s-field"><label>Secondary Color</label><div class="s-color-row"><input class="s-color" id="prop_secondary_color_${i}" type="color" value="${/^#[0-9A-F]{6}$/i.test(p.secondary_color||'')?p.secondary_color:'#1677A8'}" ${canEdit?'':'disabled'}><input id="prop_secondary_text_${i}" value="${esc(p.secondary_color||'#1677A8')}" maxlength="7" ${canEdit?'':'readonly disabled'}></div></div>
    </div>
    <div class="s-msg" id="propMsg_${i}"></div>
    <div class="s-note">Property Code is read-only. Changes are recorded in the Audit Log.</div>`,
-   '<button class="s-btn primary" data-prop-save="'+i+'">Save Property</button>'
+   canEdit?'<button class="s-btn primary" data-prop-save="'+i+'">Save Property</button>':'<span class="s-note">ADMIN access is read-only for Property Settings.</span>'
  )).join('');
  rows.forEach((p,i)=>{
    const pc=$('prop_primary_color_'+i),pt=$('prop_primary_text_'+i),sc=$('prop_secondary_color_'+i),st=$('prop_secondary_text_'+i);
