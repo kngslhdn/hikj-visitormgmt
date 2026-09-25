@@ -12,7 +12,7 @@ function card(title,sub,body,actions=''){return '<section class="s-card"><div cl
 async function whatsapp(token){
  const r=await req('settings');if(!current(token))return;const w=r.settings?.whatsapp||{};
  $('sContent').innerHTML=card('WhatsApp','Public form notification recipient',`
- <div class="s-grid"><div class="s-field"><label>Recipient Name</label><input id="waName" value="${esc(w.recipient_name||'HIKJ Security')}"></div><div class="s-field"><label>WhatsApp Phone Number</label><input id="waPhone" value="${esc(w.phone_number||'')}" placeholder="628xxxxxxxxxx"></div></div>
+ <div class="s-grid"><div class="s-field"><label>Recipient Name</label><input id="waName" value="${esc(w.recipient_name||'SECUREOPS Security')}"></div><div class="s-field"><label>WhatsApp Phone Number</label><input id="waPhone" value="${esc(w.phone_number||'')}" placeholder="628xxxxxxxxxx"></div></div>
  <div class="s-msg" id="waMsg"></div>
  <div class="s-note">Use international format without spaces. This number is used by public visitor, key and package forms</div>`,
  '<button class="s-btn primary" id="waSave">Save Changes</button>');
@@ -59,7 +59,7 @@ function exportKeyAssets(rows){
  const csvEsc=v=>{const s=String(v??'');return /[\",\n\r]/.test(s)?'\"'+s.replace(/\"/g,'\"\"')+'\"':s};
  const csv=[headers,...rows.map(x=>[x.key_number,x.key_description,x.location_department,x.quantity,x.active?'ACTIVE':'INACTIVE'])].map(row=>row.map(csvEsc).join(',')).join('\r\n');
  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
- const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='HIKJ-Key-Assets-'+new Date().toISOString().slice(0,10)+'.csv';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
+ const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='SECUREOPS-Key-Assets-'+new Date().toISOString().slice(0,10)+'.csv';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
 }
 async function keys(token){
  const r=await req('key_assets');if(!current(token))return;const rows=r.data||[];
@@ -102,7 +102,7 @@ async function operations(token){
  $('sContent').innerHTML=card('System / Operations','Enable or disable operational modules',`<div style="display:grid;gap:8px">${fields.map(([k,l])=>`<div class="s-toggle"><label>${l}</label><input type="checkbox" data-op="${k}" ${o[k]!==false?'checked':''}></div>`).join('')}</div><div class="s-msg" id="opMsg"></div>`, '<button class="s-btn primary" id="opSave">Save Changes</button>');$('opSave').onclick=async()=>{try{const value={...o};fields.forEach(([k])=>value[k]=document.querySelector('[data-op="'+k+'"]').checked);await req('save_operations','POST',{value});msg('opMsg','Operational settings updated')}catch(e){msg('opMsg',e.message,true)}}}
 async function audit(token){const r=await req('audit_logs');if(!current(token))return;const rows=r.data||[];$('sContent').innerHTML=card('Audit Log','Administrative changes and security-sensitive actions',`<div class="s-table"><table><thead><tr><th>Date / Time</th><th>User</th><th>Action</th><th>Module</th><th>Target</th><th>Description</th></tr></thead><tbody>${rows.length?rows.map(x=>`<tr><td>${esc(new Date(x.created_at).toLocaleString('en-GB'))}</td><td>${esc(x.user_name||'—')}</td><td>${esc(x.action)}</td><td>${esc(x.module)}</td><td>${esc(x.target||'—')}</td><td>${esc(x.description||'—')}</td></tr>`).join(''):'<tr><td colspan="6">No audit entries found</td></tr>'}</tbody></table></div>`)}
 async function render(tab='whatsapp',token=null){if(!current(token))return;
- style();$('aPage').innerHTML='<div class="a-head"><div><div class="a-kicker">HIKJ SECURITY</div><h1>Settings</h1><p>System configuration, access control and key inventory</p></div></div><div class="a-tabs">'+['whatsapp','admins','keys','operations','audit'].map((x,i)=>`<button class="${x===tab?'active':''}" data-stab="${x}">${x==='whatsapp'?'WhatsApp':x==='admins'?'Admin Users':x==='keys'?'Key Assets':x==='operations'?'System / Operations':'Audit Log'}</button>`).join('')+'</div><div id="sContent" class="s-wrap"></div>';
+ style();$('aPage').innerHTML='<div class="a-head"><div><div class="a-kicker">SECUREOPS SECURITY</div><h1>Settings</h1><p>System configuration, access control and key inventory</p></div></div><div class="a-tabs">'+['whatsapp','admins','keys','operations','audit'].map((x,i)=>`<button class="${x===tab?'active':''}" data-stab="${x}">${x==='whatsapp'?'WhatsApp':x==='admins'?'Admin Users':x==='keys'?'Key Assets':x==='operations'?'System / Operations':'Audit Log'}</button>`).join('')+'</div><div id="sContent" class="s-wrap"></div>';
  document.querySelectorAll('[data-stab]').forEach(b=>b.onclick=()=>render(b.dataset.stab,token));
  try{if(tab==='whatsapp')await whatsapp(token);else if(tab==='admins')await admins(token);else if(tab==='keys')await keys(token);else if(tab==='operations')await operations(token);else await audit(token)}catch(e){if(current(token)){const target=$('sContent');if(target)target.innerHTML='<div class="a-error">'+esc(e.message)+'</div>'}}
 }
