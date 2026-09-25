@@ -90,7 +90,29 @@ async function settingsData(){
   }
   return out;
 }
+async function propertySettings(a:any){
+  const {data,error}=await sb.from('properties').select('id,property_code,property_name,logo_url,primary_color,secondary_color,timezone,address,is_active,updated_at').order('property_name');
+  if(error)throw error;
+  return data||[];
+}
+async function saveProperty(a:any,b:any){
+  const id=String(b.id||'').trim(), propertyName=String(b.property_name||'').trim(), address=String(b.address||'').trim(), timezone=String(b.timezone||'').trim(), logoUrl=String(b.logo_url||'').trim(), primaryColor=String(b.primary_color||'').trim().toUpperCase(), secondaryColor=String(b.secondary_color||'').trim().toUpperCase();
+  if(!id||!propertyName||!timezone)return {error:'Property ID, Property Name and Timezone are required.'};
+  if(primaryColor&&!/^#[0-9A-F]{6}$/i.test(primaryColor))return {error:'Primary Color must be a valid HEX color.'};
+  if(secondaryColor&&!/^#[0-9A-F]{6}$/i.test(secondaryColor))return {error:'Secondary Color must be a valid HEX color.'};
+  const {data:before,error:be}=await sb.from('properties').select('id,property_code,property_name,logo_url,primary_color,secondary_color,timezone,address,is_active').eq('id',id).maybeSingle();
+  if(be)throw be;
+  if(!before)return {error:'Property not found.'};
+  const patch={property_name:propertyName,address:address||null,timezone,logo_url:logoUrl||null,primary_color:primaryColor||null,secondary_color:secondaryColor||null,is_active:b.is_active!==false};
+  const {data:after,error}=await sb.from('properties').update(patch).eq('id',id).select('id,property_code,property_name,logo_url,primary_color,secondary_color,timezone,address,is_active,updated_at').single();
+  if(error)throw error;
+  await audit(a,'UPDATE','Property Settings',before.property_code||id,JSON.stringify({before,after}));
+  return {data:after};
+}
+
 async function settingsAction(req:Request,a:any,action:string){
+  if(action==='property_settings'){return json(req,{data:await propertySettings(a)})}
+  if(action==='save_property'){const b=await req.json();const result=await saveProperty(a,b);if(result.error)return json(req,{error:result.error},400);return json(req,{ok:true,data:result.data})}
   if(action==='settings'){return json(req,{settings:await settingsData()})}
   if(action==='save_whatsapp'){
     const b=await req.json(),phone=String(b.phone_number||'').replace(/[^0-9]/g,'');
