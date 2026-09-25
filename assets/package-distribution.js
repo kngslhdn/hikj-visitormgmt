@@ -1,7 +1,8 @@
 /* HIKJ Package Distribution - Security workflow */
 (() => {
-  const FUNCTION_URL = window.location.origin+'/functions/v1/package-distribution';
-  const SUPABASE_URL = window.location.origin;
+  const CONFIG = window.SECUREOPS_CONFIG || {};
+  const SUPABASE_URL = CONFIG.SUPABASE_URL || '';
+  const FUNCTION_URL = (CONFIG.SUPABASE_FUNCTIONS_URL || (SUPABASE_URL ? SUPABASE_URL+'/functions/v1' : '')) + '/package-distribution';
   let client = null;
   let selected = null;
   let authSession = null;
@@ -22,7 +23,7 @@
   }
 
   function getPublishableKey() {
-    return window.HIKJ_SUPABASE_PUBLISHABLE_KEY || '';
+    return CONFIG.SUPABASE_PUBLISHABLE_KEY || '';
   }
 
   const esc = v => String(v ?? '').replace(/[&<>\"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
