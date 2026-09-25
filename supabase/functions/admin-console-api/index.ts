@@ -90,29 +90,51 @@ async function settingsData(){
   }
   return out;
 }
-async function propertySettings(a:any){
-  const {data,error}=await sb.from('properties').select('id,property_code,property_name,logo_url,primary_color,secondary_color,timezone,address,is_active,updated_at').order('property_name');
-  if(error)throw error;
-  return data||[];
+async function callerDb(req:Request){
+  const auth=req.headers.get('Authorization')||'';
+  if(!auth.startsWith('Bearer '))throw new Error('Unauthorized');
+  const token=auth.slice(7);
+  const {data:{user},error}=await sb.auth.getUser(token);
+  if(error||!user)throw new Error('Unauthorized');
+  const caller=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_ANON_KEY')||Deno.env.get('SUPABASE_PUBLISHABLE_KEY')!,{global:{headers:{Authorization:`Bearer ${token}`}},auth:{persistSession:false,autoRefreshToken:false}});
+  const {data:profile,error:pe}=await caller.from('admin_profiles').select('user_id,full_name,role,active,property_id').eq('user_id',user.id).eq('active',true).maybeSingle();
+  if(pe)throw pe;
+  const role=String(profile?.role||'').toUpperCase();
+  if(!profile||!['ADMIN','MANAGER','SUPERADMIN'].includes(role))throw new Error('Admin access denied');
+  if(role!=='SUPERADMIN'&&!profile.property_id)throw new Error('Property assignment required');
+  return {caller,user,profile};
 }
-async function saveProperty(a:any,b:any){
+async function propertySettings(req:Request){
+  const {caller,profile}=await callerDb(req);
+  let q=caller.from('properties').select('id,property_code,property_name,logo_url,primary_color,secondary_color,timezone,address,is_active,updated_at').order('property_name');
+  if(String(profile.role).toUpperCase()!=='SUPERADMIN')q=q.eq('id',profile.property_id);
+  const {data,error}=await q;if(error)throw error;return data||[];
+}
+async function saveProperty(req:Request,b:any){
+  const {caller,profile,user}=await callerDb(req);
   const id=String(b.id||'').trim(), propertyName=String(b.property_name||'').trim(), address=String(b.address||'').trim(), timezone=String(b.timezone||'').trim(), logoUrl=String(b.logo_url||'').trim(), primaryColor=String(b.primary_color||'').trim().toUpperCase(), secondaryColor=String(b.secondary_color||'').trim().toUpperCase();
+  const role=String(profile.role||'').toUpperCase();
+  if(role==='ADMIN')return {error:'Property settings are read-only for ADMIN.'};
   if(!id||!propertyName||!timezone)return {error:'Property ID, Property Name and Timezone are required.'};
   if(primaryColor&&!/^#[0-9A-F]{6}$/i.test(primaryColor))return {error:'Primary Color must be a valid HEX color.'};
   if(secondaryColor&&!/^#[0-9A-F]{6}$/i.test(secondaryColor))return {error:'Secondary Color must be a valid HEX color.'};
-  const {data:before,error:be}=await sb.from('properties').select('id,property_code,property_name,logo_url,primary_color,secondary_color,timezone,address,is_active').eq('id',id).maybeSingle();
-  if(be)throw be;
-  if(!before)return {error:'Property not found.'};
+  let beforeQ=caller.from('properties').select('id,property_code,property_name,logo_url,primary_color,secondary_color,timezone,address,is_active').eq('id',id);
+  if(role!=='SUPERADMIN')beforeQ=beforeQ.eq('id',profile.property_id);
+  const {data:before,error:be}=await beforeQ.maybeSingle();
+  if(be)throw be;if(!before)return {error:'Property not found or access denied.'};
   const patch={property_name:propertyName,address:address||null,timezone,logo_url:logoUrl||null,primary_color:primaryColor||null,secondary_color:secondaryColor||null,is_active:b.is_active!==false};
-  const {data:after,error}=await sb.from('properties').update(patch).eq('id',id).select('id,property_code,property_name,logo_url,primary_color,secondary_color,timezone,address,is_active,updated_at').single();
+  let updateQ=caller.from('properties').update(patch).eq('id',id);
+  if(role!=='SUPERADMIN')updateQ=updateQ.eq('id',profile.property_id);
+  const {data:after,error}=await updateQ.select('id,property_code,property_name,logo_url,primary_color,secondary_color,timezone,address,is_active,updated_at').single();
   if(error)throw error;
-  await audit(a,'UPDATE','Property Settings',before.property_code||id,JSON.stringify({before,after}));
+  await sb.from('audit_logs').insert({user_id:user.id,user_name:profile.full_name||user.email,action:'UPDATE',module:'Property Settings',target:before.property_code||id,description:JSON.stringify({before,after})});
   return {data:after};
 }
 
+
 async function settingsAction(req:Request,a:any,action:string){
-  if(action==='property_settings'){return json(req,{data:await propertySettings(a)})}
-  if(action==='save_property'){const b=await req.json();const result=await saveProperty(a,b);if(result.error)return json(req,{error:result.error},400);return json(req,{ok:true,data:result.data})}
+  if(action==='property_settings'){return json(req,{data:await propertySettings(req)})}
+  if(action==='save_property'){const b=await req.json();const result=await saveProperty(req,b);if(result.error)return json(req,{error:result.error},400);return json(req,{ok:true,data:result.data})}
   if(action==='settings'){return json(req,{settings:await settingsData()})}
   if(action==='save_whatsapp'){
     const b=await req.json(),phone=String(b.phone_number||'').replace(/[^0-9]/g,'');
