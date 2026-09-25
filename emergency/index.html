@@ -116,11 +116,10 @@ main{max-width:1700px;margin:0 auto;padding:28px 30px 34px}.hero{display:flex;ju
 </style>
 </head>
 <body>
-<section id="login" class="login hidden"><div class="login-card">
+<section id="sessionGate" class="login"><div class="login-card">
 <div class="secureops-logo" aria-label="SECUREOPS">SECUREOPS</div>
 <div class="login-brand">SECUREOPS<small>EMERGENCY NOTIFICATION SYSTEM • ks.v.001</small></div>
-<h1>Admin Sign In</h1><p>Authorized ERT personnel only</p>
-<form id="loginForm"><div class="field"><label>Email</label><input id="email" type="email" autocomplete="username" required></div><div class="field"><label>Password</label><input id="password" type="password" autocomplete="current-password" required></div><button id="loginBtn" class="login-btn" type="submit">SIGN IN</button><div id="loginErr" class="login-error"></div></form>
+<h1>Opening Emergency Operations…</h1><p>Using your existing SECUREOPS Admin Console session.</p>
 </div></section>
 <section id="app" class="hidden">
 <header class="top"><div class="brand">EMERGENCY RESPONSE<small>EMERGENCY NOTIFICATION SYSTEM</small></div><div class="top-logo-text" aria-label="SECUREOPS">SECUREOPS</div><div class="top-user"><b id="userName">—</b><br><span id="userRole">—</span></div></header>
@@ -173,12 +172,10 @@ const sb=window.supabase.createClient(U,K,{auth:{persistSession:true,autoRefresh
 const $=id=>document.getElementById(id), esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
 let session=null, types=[], templates=[], contacts=[], groups=[], systemSettings={}, currentWaDispatches=[];
 async function api(action,method='GET',body=null,query=null){const qs=new URLSearchParams({action,...(query||{})});const r=await fetch(API+'?'+qs.toString(),{method,headers:{apikey:K,Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});const j=await r.json().catch(()=>({}));if(!r.ok)throw Error(j.error||'Request failed');return j}
-function showLogin(message=''){$('app').classList.add('hidden');$('login').classList.remove('hidden');$('loginErr').textContent=message}
-async function enter(s){session=s;try{const me=await api('me');$('userName').textContent=me.profile?.full_name||s.user.email;$('userRole').textContent=me.profile?.role||'ADMIN';$('login').classList.add('hidden');$('app').classList.remove('hidden');await boot()}catch(e){console.error('Emergency bootstrap failed:',e);await sb.auth.signOut();showLogin('Session could not be validated. Please sign in again.')}}
-async function initAuth(){const {data,error}=await sb.auth.getSession();if(error||!data.session){showLogin(error?.message||'Please sign in to continue');return}await enter(data.session)}
-$('loginForm').onsubmit=async e=>{e.preventDefault();$('loginBtn').disabled=true;try{const {data,error}=await sb.auth.signInWithPassword({email:$('email').value.trim(),password:$('password').value});if(error)throw error;if(!data.session)throw Error('No session returned');await enter(data.session)}catch(e){showLogin(e.message)}finally{$('loginBtn').disabled=false}};
-$('logout').onclick=async()=>{await sb.auth.signOut();showLogin('Signed out successfully')};
-sb.auth.onAuthStateChange((event,s)=>{if(event==='SIGNED_OUT'){showLogin('Your session has ended. Please sign in again')}else if(event==='SIGNED_IN'&&s){setTimeout(()=>enter(s),0)}});
+async function enter(s){session=s;try{const me=await api('me');$('userName').textContent=me.profile?.full_name||s.user.email;$('userRole').textContent=me.profile?.role||'ADMIN';$('sessionGate').classList.add('hidden');$('app').classList.remove('hidden');await boot()}catch(e){console.error('Emergency bootstrap failed:',e);await sb.auth.signOut();location.href='../admin/'}}
+async function initAuth(){const {data,error}=await sb.auth.getSession();if(error||!data.session){location.href='../admin/';return}await enter(data.session)}
+$('logout').onclick=async()=>{await sb.auth.signOut();location.href='../admin/'};
+sb.auth.onAuthStateChange((event,s)=>{if(event==='SIGNED_OUT'){location.href='../admin/'}else if(event==='SIGNED_IN'&&s){setTimeout(()=>enter(s),0)}});
 
 async function boot(){const r=await api('bootstrap');types=r.types||[];templates=r.templates||[];contacts=r.contacts||[];groups=r.groups||[];systemSettings=Object.fromEntries((r.settings||[]).map(x=>[x.setting_key,x.setting_value]));renderTypes();renderTemplates();renderRecipients();renderGroups();applyDefaults();await refresh();syncSidebar();if(location.hash){const el=$(location.hash.slice(1));if(el)setTimeout(()=>el.scrollIntoView({block:'start'}),50)}}
 function renderTypes(){$('type').innerHTML='<option value="">Select</option>'+types.map(x=>'<option value="'+x.id+'">'+esc(x.name)+'</option>').join('');$('type').onchange=()=>{const t=types.find(x=>x.id===$('type').value);if(t){const r=document.querySelector('input[name=severity][value="'+(t.default_severity||'URGENT')+'"]');if(r)r.checked=true}}}
