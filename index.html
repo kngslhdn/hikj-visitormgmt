@@ -99,8 +99,9 @@
 <div class="footer">SECURE&nbsp;&nbsp;•&nbsp;&nbsp;SAFE&nbsp;&nbsp;•&nbsp;&nbsp;WELCOMING</div>
 <p class="privacy">SECUREOPS • ks.v.001</p>
 </main>
+<script src="assets/secureops-config.js"></script>
 <script>
-const SUPABASE_FUNCTION_URL=location.hostname.endsWith('.github.io')?'https://hmqgmusellcetakoalva.supabase.co/functions/v1/visitor-submit':window.location.origin+'/functions/v1/visitor-submit';
+const SUPABASE_FUNCTION_URL=(window.SECUREOPS_CONFIG?.SUPABASE_FUNCTIONS_URL||window.location.origin+'/functions/v1')+'/visitor-submit';
 const locations=['Receiving','Purchasing','Grand Ball Room','Bali Room','Ramayana Terrace','Heritage 1','Heritage 2','Cendana + Eboni','Palapi + Jati','Damar + Angsana','Mahoni + Ulin','Business Center','Signature Restaurant','Paulaner Restaurant','Oku Restaurant','Executive Lounge','President Suite Room 832','Room','Other'];
 const icons={entry:'<svg viewBox="0 0 48 48"><circle cx="24" cy="14" r="7"/><path d="M11 38c1.5-8 6.2-12 13-12s11.5 4 13 12"/></svg>',exit:'<svg viewBox="0 0 48 48"><path d="M28 9H13v30h15"/><path d="M22 24h17M32 17l7 7-7 7"/></svg>',key:'<svg viewBox="0 0 48 48"><circle cx="16" cy="31" r="8"/><path d="M22 25 37 10M31 16l5 5M27 20l5 5"/></svg>',return:'<svg viewBox="0 0 48 48"><circle cx="16" cy="18" r="6.5"/><path d="M21 23 36 8M29 15l5 5M25 19l5 5"/><path d="M8 30c1 7 7 11 14 11 8 0 14-5 16-12"/><path d="M38 29l-1 6-6-1"/></svg>',package:'<svg viewBox="0 0 48 48"><path d="M9 15l15-7 15 7-15 7zM9 15v18l15 8 15-8V15M24 22v19M16 11l15 7"/></svg>'};
 const forms={
