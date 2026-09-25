@@ -9,21 +9,18 @@ async function token(){const c=window.supabase.createClient(U,K);const {data}=aw
 async function req(action,method='GET',body=null){const t=await token();const r=await fetch(API+'?action='+encodeURIComponent(action),{method,headers:{apikey:K,Authorization:'Bearer '+t,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});const j=await r.json().catch(()=>({}));if(!r.ok)throw Error(j.error||'Request failed');return j}
 function msg(id,text,err=false){const e=$(id);if(!e)return;e.textContent=text||'';e.classList.toggle('err',!!err)}
 function card(title,sub,body,actions=''){return '<section class="s-card"><div class="s-head"><div><h2>'+esc(title)+'</h2><small>'+esc(sub)+'</small></div>'+(actions?'<div class="s-head-actions">'+actions+'</div>':'')+'</div><div class="s-body">'+body+'</div></section>'}
-async function propertyManagement(token){
- const r=await req('property_management');if(!current(token))return;const rows=r.data||[];
- const cards=rows.map((p,i)=>card(p.property_name||p.property_code,'Property Management • '+p.property_code,
-  '<div class="s-grid"><div class="s-field"><label>Property Code</label><input value="'+esc(p.property_code||'')+'" readonly disabled></div><div class="s-field"><label>Property Name</label><input value="'+esc(p.property_name||'')+'" readonly disabled></div><div class="s-field"><label>Timezone</label><input value="'+esc(p.timezone||'')+'" readonly disabled></div><div class="s-field"><label>Status</label><span class="s-badge '+(p.is_active?'s-on':'s-off')+'">'+(p.is_active?'ACTIVE':'INACTIVE')+'</span></div></div><div class="s-msg" id="pmMsg_'+i+'"></div>',
-  '<button class="s-btn" data-pm-toggle="'+i+'">'+(p.is_active?'Deactivate Property':'Activate Property')+'</button>')).join('');
- $('sContent').innerHTML='<div class="s-toolbar"><button class="s-btn primary" id="pmCreate">Create Property</button></div>'+cards;
- document.querySelectorAll('[data-pm-toggle]').forEach(btn=>btn.onclick=async()=>{const i=Number(btn.dataset.pmToggle),p=rows[i];if(p.is_active&&!confirm('Deactivate '+p.property_name+'?'))return;btn.disabled=true;try{await req('set_property_status','POST',{id:p.id,is_active:!p.is_active});await propertyManagement(token)}catch(e){msg('pmMsg_'+i,e.message,true);btn.disabled=false}});
- $('pmCreate').onclick=async()=>{const code=prompt('Property Code (e.g. HIKB)');if(code===null)return;const name=prompt('Property Name');if(name===null)return;try{await req('create_property','POST',{property_code:code,property_name:name,timezone:'Asia/Jakarta'});await propertyManagement(token)}catch(e){alert(e.message)}};
-}
 async function properties(token){
  const r=await req('property_settings');if(!current(token))return;
  const rows=r.data||[];
- if(!rows.length){$('sContent').innerHTML=card('Property Profile','No property is configured','<div class="s-note">Create a property record before configuring Property Settings.</div>');return}
- const role=String(window.HIKJAdminRole||'').toUpperCase(),canEdit=role==='SUPERADMIN'||role==='MANAGER';
-$('sContent').innerHTML=rows.map((p,i)=>card(
+ const role=String(window.HIKJAdminRole||'').toUpperCase(),isSuper=role==='SUPERADMIN',canEdit=isSuper||role==='MANAGER';
+ if(!rows.length){
+   $('sContent').innerHTML=card('Property','No property is configured','<div class="s-note">Create a property record before configuring Property Settings.</div>',
+     isSuper?'<button class="s-btn primary" id="propCreate">Create Property</button>':'');
+   if(isSuper)$('propCreate').onclick=()=>createProperty(token);
+   return;
+ }
+ $('sContent').innerHTML=(isSuper?'<div class="s-toolbar"><button class="s-btn primary" id="propCreate">Create Property</button><span class="s-note">Manage all SECUREOPS properties from this single workspace.</span></div>':'')+
+ rows.map((p,i)=>card(
    p.property_name||p.property_code||'Property',
    'Property Profile • '+(p.property_code||'—'),
    `<div class="s-grid">
@@ -40,18 +37,31 @@ $('sContent').innerHTML=rows.map((p,i)=>card(
    <div class="s-brand-preview"><img class="s-brand-logo" src="${esc(p.logo_url||'')}" onerror="this.style.display='none'"><div><div class="s-brand-title">${esc(p.property_name||'Property')}</div><div class="s-brand-sub">${esc(p.property_code||'')} · ${esc(p.timezone||'')}</div></div><span class="s-brand-swatch" style="background:${esc(p.primary_color||'#0B2239')}"></span><span class="s-brand-swatch" style="background:${esc(p.secondary_color||'#1677A8')}"></span></div><div class="s-note">Property Code is read-only. Changes are recorded in the Audit Log.</div>`,
    canEdit?'<button class="s-btn primary" data-prop-save="'+i+'">Save Property</button>':'<span class="s-note">ADMIN access is read-only for Property Settings.</span>'
  )).join('');
+
+ if(isSuper)$('propCreate').onclick=()=>createProperty(token);
  rows.forEach((p,i)=>{
    const pc=$('prop_primary_color_'+i),pt=$('prop_primary_text_'+i),sc=$('prop_secondary_color_'+i),st=$('prop_secondary_text_'+i);
    pc.oninput=()=>{pt.value=pc.value.toUpperCase()};pt.onchange=()=>{if(/^#[0-9A-F]{6}$/i.test(pt.value.trim()))pc.value=pt.value.trim().toUpperCase()};
    sc.oninput=()=>{st.value=sc.value.toUpperCase()};st.onchange=()=>{if(/^#[0-9A-F]{6}$/i.test(st.value.trim()))sc.value=st.value.trim().toUpperCase()};
-   const btn=document.querySelector('[data-prop-save="'+i+'"]');btn.onclick=async()=>{
+   const btn=document.querySelector('[data-prop-save="'+i+'"]');
+   if(!btn)return;
+   btn.onclick=async()=>{
      btn.disabled=true;msg('propMsg_'+i,'Saving…');
      try{
        const payload={id:p.id,property_name:$('prop_name_'+i).value.trim(),address:$('prop_address_'+i).value.trim(),timezone:$('prop_timezone_'+i).value.trim(),logo_url:$('prop_logo_'+i).value.trim(),primary_color:pt.value.trim(),secondary_color:st.value.trim(),is_active:$('prop_active_'+i).value==='true'};
-       await req('save_property','POST',payload);const preview=document.querySelectorAll('.s-brand-preview')[i];if(preview){preview.querySelector('.s-brand-title').textContent=payload.property_name;preview.querySelector('.s-brand-sub').textContent=p.property_code+' · '+payload.timezone;preview.querySelectorAll('.s-brand-swatch')[0].style.background=payload.primary_color;preview.querySelectorAll('.s-brand-swatch')[1].style.background=payload.secondary_color}msg('propMsg_'+i,'Property settings saved successfully');
+       await req('save_property','POST',payload);
+       const preview=document.querySelectorAll('.s-brand-preview')[i];
+       if(preview){preview.querySelector('.s-brand-title').textContent=payload.property_name;preview.querySelector('.s-brand-sub').textContent=p.property_code+' · '+payload.timezone;preview.querySelectorAll('.s-brand-swatch')[0].style.background=payload.primary_color;preview.querySelectorAll('.s-brand-swatch')[1].style.background=payload.secondary_color}
+       msg('propMsg_'+i,'Property settings saved successfully');
      }catch(e){msg('propMsg_'+i,e.message,true)}finally{btn.disabled=false}
    };
  });
+}
+async function createProperty(token){
+ const code=prompt('Property Code (e.g. HIKB)');if(code===null)return;
+ const name=prompt('Property Name');if(name===null)return;
+ const timezone=prompt('Timezone','Asia/Jakarta');if(timezone===null)return;
+ try{await req('create_property','POST',{property_code:code.trim().toUpperCase(),property_name:name.trim(),timezone:timezone.trim()||'Asia/Jakarta'});await properties(token)}catch(e){alert(e.message)}
 }
 
 async function whatsapp(token){
@@ -147,10 +157,10 @@ async function operations(token){
  $('sContent').innerHTML=card('System / Operations','Enable or disable operational modules',`<div style="display:grid;gap:8px">${fields.map(([k,l])=>`<div class="s-toggle"><label>${l}</label><input type="checkbox" data-op="${k}" ${o[k]!==false?'checked':''} ${canEdit?'':'disabled'}></div>`).join('')}</div><div class="s-msg" id="opMsg"></div>`, canEdit?'<button class="s-btn primary" id="opSave">Save Changes</button>':'<span class="s-note">ADMIN access is read-only for Operational Settings.</span>');$('opSave').onclick=async()=>{try{const value={...o};fields.forEach(([k])=>value[k]=document.querySelector('[data-op="'+k+'"]').checked);await req('save_operations','POST',{value});msg('opMsg','Operational settings updated')}catch(e){msg('opMsg',e.message,true)}}}
 async function audit(token){const r=await req('audit_logs');if(!current(token))return;const rows=r.data||[];$('sContent').innerHTML=card('Audit Log','Administrative changes and security-sensitive actions',`<div class="s-table"><table><thead><tr><th>Date / Time</th><th>User</th><th>Action</th><th>Module</th><th>Target</th><th>Description</th></tr></thead><tbody>${rows.length?rows.map(x=>`<tr><td>${esc(new Date(x.created_at).toLocaleString('en-GB'))}</td><td>${esc(x.user_name||'—')}</td><td>${esc(x.action)}</td><td>${esc(x.module)}</td><td>${esc(x.target||'—')}</td><td>${esc(x.description||'—')}</td></tr>`).join(''):'<tr><td colspan="6">No audit entries found</td></tr>'}</tbody></table></div>`)}
 async function render(tab='whatsapp',token=null){if(!current(token))return;
- style();const role=String(window.HIKJAdminRole||'').toUpperCase(),tabs=role==='SUPERADMIN'?['property','property_management','whatsapp','admins','keys','operations','audit']:['property','whatsapp','operations'];
-$('aPage').innerHTML='<div class="a-head"><div><div class="a-kicker">SECUREOPS SECURITY</div><h1>Settings</h1><p>System configuration, access control and key inventory</p></div></div><div class="a-tabs">'+tabs.map((x,i)=>`<button class="${x===tab?'active':''}" data-stab="${x}">${x==='property'?'Property':x==='property_management'?'Property Management':x==='whatsapp'?'WhatsApp':x==='admins'?'Admin Users':x==='keys'?'Key Assets':x==='operations'?'System / Operations':'Audit Log'}</button>`).join('')+'</div><div id="sContent" class="s-wrap"></div>';
+ style();const role=String(window.HIKJAdminRole||'').toUpperCase(),tabs=role==='SUPERADMIN'?['property','whatsapp','admins','keys','operations','audit']:['property','whatsapp','operations'];
+$('aPage').innerHTML='<div class="a-head"><div><div class="a-kicker">SECUREOPS SECURITY</div><h1>Settings</h1><p>System configuration, access control and key inventory</p></div></div><div class="a-tabs">'+tabs.map((x,i)=>`<button class="${x===tab?'active':''}" data-stab="${x}">${x==='property'?'Property':x==='whatsapp'?'WhatsApp':x==='admins'?'Admin Users':x==='keys'?'Key Assets':x==='operations'?'System / Operations':'Audit Log'}</button>`).join('')+'</div><div id="sContent" class="s-wrap"></div>';
  document.querySelectorAll('[data-stab]').forEach(b=>b.onclick=()=>render(b.dataset.stab,token));
- try{if(tab==='property_management')await propertyManagement(token);else if(tab==='property')await properties(token);else if(tab==='whatsapp')await whatsapp(token);else if(tab==='admins')await admins(token);else if(tab==='keys')await keys(token);else if(tab==='operations')await operations(token);else await audit(token)}catch(e){if(current(token)){const target=$('sContent');if(target)target.innerHTML='<div class="a-error">'+esc(e.message)+'</div>'}}
+ try{if(tab==='property')await properties(token);else if(tab==='whatsapp')await whatsapp(token);else if(tab==='admins')await admins(token);else if(tab==='keys')await keys(token);else if(tab==='operations')await operations(token);else await audit(token)}catch(e){if(current(token)){const target=$('sContent');if(target)target.innerHTML='<div class="a-error">'+esc(e.message)+'</div>'}}
 }
 window.HIKJSettingsRender=render;
 })();
