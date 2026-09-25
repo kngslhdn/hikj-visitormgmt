@@ -166,7 +166,7 @@ async function settingsAction(req:Request,a:any,action:string){
 Deno.serve(async req=>{
   if(req.method==='OPTIONS')return new Response(null,{status:204,headers:headers(req)});if(!['GET','POST'].includes(req.method))return json(req,{error:'Method not allowed'},405);
   try{
-    const auth=await admin(req);if(auth.error)return auth.error;const url=new URL(req.url),action=url.searchParams.get('action')||'summary';if(['settings','admin_users','key_assets','audit_logs'].includes(action)){const sa=await superAdmin(req);if(sa.error)return sa.error;const r=await settingsAction(req,sa,action);if(r)return r;return json(req,{error:'Unknown action'},400)}if(req.method==='POST'){const sa=await superAdmin(req);if(sa.error)return sa.error;const r=await settingsAction(req,sa,action);if(r)return r;return json(req,{error:'Unknown action'},400);}
+    const auth=await admin(req);if(auth.error)return auth.error;const url=new URL(req.url),action=url.searchParams.get('action')||'summary';if(['settings','property_settings','admin_users','key_assets','audit_logs'].includes(action)){const sa=await superAdmin(req);if(sa.error)return sa.error;const r=await settingsAction(req,sa,action);if(r)return r;return json(req,{error:'Unknown action'},400)}if(req.method==='POST'){const sa=await superAdmin(req);if(sa.error)return sa.error;const r=await settingsAction(req,sa,action);if(r)return r;return json(req,{error:'Unknown action'},400);}
     if(action==='summary'){
       const d=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Jakarta',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
       const since=new Date(d+'T00:00:00+07:00');
