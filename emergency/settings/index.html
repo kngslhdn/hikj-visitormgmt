@@ -88,7 +88,7 @@ main{max-width:1700px;width:100%;padding:28px 30px 34px;margin:0 auto;overflow:a
 <div class="modal" id="editor"><div class="modalbox"><div class="modalhead"><h2 id="editorTitle">Edit</h2><button class="btn" type="button" data-action="close-editor">Close</button></div><div id="editorBody"></div><div id="editorNotice" class="notice"></div></div></div>
 
 <script>
-const U=window.SECUREOPS_CONFIG.SUPABASE_URL,K='sb_publishable_J6P-baCAZOoVxj2rHBZMkA_Ux4U5_mQ';
+const U=window.SECUREOPS_CONFIG.SUPABASE_URL,K=window.SECUREOPS_CONFIG.SUPABASE_PUBLISHABLE_KEY;
 const sb=window.supabase.createClient(U,K,{auth:{persistSession:true,autoRefreshToken:true,storageKey:'sb-hmqgmusellcetakoalva-auth-token'}}),API=U+'/functions/v1/emergency-api';
 const $=id=>document.getElementById(id),esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
 let session=null,state={types:[],templates:[],groups:[],contacts:[],members:[],settings:[],audit:[],smtp:{},profile:{}};
