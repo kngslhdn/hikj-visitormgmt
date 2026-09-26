@@ -36,11 +36,11 @@
 <body>
 <section id="login" class="login hidden"><div class="login-card">
 <div class="logo-text" aria-label="SECUREOPS">SECUREOPS</div>
-<div class="brand">SECUREOPS<small>SECURITY ADMINISTRATION CONSOLE • ks.v.001</small></div>
+<div class="brand">SECUREOPS<small>SECURITY ADMINISTRATION CONSOLE<br>ks.v.001</small></div>
 <h1>SECUREOPS Admin Sign In</h1><p>Authorized SECUREOPS administrators only</p>
 <form id="loginForm"><div class="field"><label>Email</label><input id="email" type="email" autocomplete="username" required></div><div class="field"><label>Password</label><input id="password" type="password" autocomplete="current-password" required></div><button id="loginBtn" class="login-btn" type="submit">SIGN IN</button><a class="back-form" href="../">← Back to Form</a><div id="loginError" class="error"></div></form>
 </div></section>
-<section id="app" class="hidden"><header class="top"><div class="top-title">SECUREOPS<small>SECURITY ADMIN CONSOLE • ks.v.001</small></div><div class="top-logo-text" aria-label="SECUREOPS">SECUREOPS</div><div class="user"><div class="user-info"><b id="userName">Admin</b><small id="userRole">—</small></div></div></header><div class="actionbar"><div class="actionbar-inner"><a class="emergency-link" href="../emergency/">Emergency</a><button id="logout">Sign Out</button></div></div><div id="v2Boot" class="v2-loading">Loading Security Admin Console…</div></section>
+<section id="app" class="hidden"><header class="top"><div class="top-title">SECUREOPS<small>SECURITY ADMIN CONSOLE<br>ks.v.001</small></div><div class="top-logo-text" aria-label="SECUREOPS">SECUREOPS</div><div class="user"><div class="user-info"><b id="userName">Admin</b><small id="userRole">—</small></div></div></header><div class="actionbar"><div class="actionbar-inner"><a class="emergency-link" href="../emergency/">Emergency</a><button id="logout">Sign Out</button></div></div><div id="v2Boot" class="v2-loading">Loading Security Admin Console…</div></section>
 <script>
 const SUPABASE_URL=window.SECUREOPS_CONFIG.SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY=window.SECUREOPS_CONFIG.SUPABASE_PUBLISHABLE_KEY;
