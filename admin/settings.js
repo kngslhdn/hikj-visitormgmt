@@ -58,6 +58,8 @@ async function properties(token){
        }
        const payload={id:p.id,property_name:$('prop_name_'+i).value.trim(),address:$('prop_address_'+i).value.trim(),timezone:$('prop_timezone_'+i).value.trim(),logo_url:logoUrl,primary_color:pt.value.trim(),secondary_color:st.value.trim(),is_active:$('prop_active_'+i).value==='true'};
        await req('save_property','POST',payload);
+       $('prop_logo_'+i).value=payload.logo_url||'';
+       if(logoFile)logoFile.value='';
        const preview=document.querySelectorAll('.s-brand-preview')[i];
        if(preview){preview.querySelector('.s-brand-title').textContent=payload.property_name;preview.querySelector('.s-brand-sub').textContent=p.property_code+' · '+payload.timezone;preview.querySelectorAll('.s-brand-swatch')[0].style.background=payload.primary_color;preview.querySelectorAll('.s-brand-swatch')[1].style.background=payload.secondary_color;const logo=preview.querySelector('.s-brand-logo');if(logo&&payload.logo_url){logo.src=payload.logo_url;logo.style.display='block'}const n=$('prop_logo_name_'+i);if(n&&payload.logo_url)n.textContent=payload.logo_url.split('/').pop()}
        msg('propMsg_'+i,'Property settings saved successfully');
