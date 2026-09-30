@@ -89,7 +89,7 @@
 <body>
 <main class="shell">
 <header class="brand">
-  <div class="brand-logo-text" aria-label="SECUREOPS">SECUREOPS</div>
+  <div id="propertyBrandLogo" class="brand-logo-text" aria-label="SECUREOPS">SECUREOPS</div>
   <h1 class="title">SECUREOPS</h1>
   <div class="subtitle">Security Operations Platform • HIKJ Property</div>
 </header>
@@ -100,6 +100,23 @@
 <p class="privacy">SECUREOPS • ks.v.001</p>
 </main>
 <script src="assets/secureops-config.js"></script>
+<script>
+async function loadPropertyBranding(){
+ try{
+  const base=window.SECUREOPS_CONFIG?.SUPABASE_FUNCTIONS_URL||'';
+  const r=await fetch(base+'/visitor-submit',{headers:{apikey:window.SECUREOPS_CONFIG?.SUPABASE_PUBLISHABLE_KEY||''}});
+  const j=await r.json();
+  const b=j.branding,url=String(b?.logo_url||'').trim(),el=document.getElementById('propertyBrandLogo');
+  if(!el)return;
+  if(url){
+   const img=document.createElement('img');img.className='brand-logo';img.alt=b?.property_name||'Property Logo';img.src=url;
+   img.onerror=()=>{img.replaceWith(document.createTextNode('SECUREOPS'));};
+   el.replaceWith(img);
+  }
+ }catch(e){/* fallback SECUREOPS */}
+}
+loadPropertyBranding();
+</script>
 <script>
 const SUPABASE_FUNCTION_URL=(window.SECUREOPS_CONFIG?.SUPABASE_FUNCTIONS_URL||window.location.origin+'/functions/v1')+'/visitor-submit';
 const locations=['Receiving','Purchasing','Grand Ball Room','Bali Room','Ramayana Terrace','Heritage 1','Heritage 2','Cendana + Eboni','Palapi + Jati','Damar + Angsana','Mahoni + Ulin','Business Center','Signature Restaurant','Paulaner Restaurant','Oku Restaurant','Executive Lounge','President Suite Room 832','Room','Other'];
