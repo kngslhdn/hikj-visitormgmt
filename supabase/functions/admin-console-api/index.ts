@@ -110,6 +110,36 @@ async function propertySettings(req:Request){
   if(String(profile.role).toUpperCase()!=='SUPERADMIN')q=q.eq('id',profile.property_id);
   const {data,error}=await q;if(error)throw error;return data||[];
 }
+async function uploadPropertyLogo(req:Request){
+  const {caller,profile,user}=await callerDb(req);
+  const role=String(profile.role||'').toUpperCase();
+  if(role!=='SUPERADMIN'&&role!=='MANAGER')throw new Error('Property logo upload is not permitted for this role.');
+  const form=await req.formData();
+  const propertyId=String(form.get('property_id')||'').trim();
+  const propertyCode=String(form.get('property_code')||'PROPERTY').trim().toUpperCase();
+  const file=form.get('file');
+  if(!propertyId||!(file instanceof File))throw new Error('Property ID and logo file are required.');
+  if(file.size>2*1024*1024)throw new Error('Logo file must be 2 MB or smaller.');
+  const allowed=new Set(['image/png','image/jpeg','image/webp','image/svg+xml']);
+  if(!allowed.has(file.type))throw new Error('Logo must be PNG, JPG, WEBP or SVG.');
+  let pq=caller.from('properties').select('id,property_code').eq('id',propertyId);
+  if(role!=='SUPERADMIN')pq=pq.eq('id',profile.property_id);
+  const {data:property,error:pe}=await pq.maybeSingle();
+  if(pe)throw pe;
+  if(!property)return {error:'Property not found or access denied.'};
+  const safeCode=String(property.property_code||propertyCode||'PROPERTY').replace(/[^A-Z0-9_-]/gi,'_').slice(0,40)||'PROPERTY';
+  const ext=(file.name.split('.').pop()||'bin').toLowerCase().replace(/[^a-z0-9]/g,'')||'bin';
+  const path=safeCode+'/'+crypto.randomUUID()+'.'+ext;
+  const bucket='property-assets';
+  const {error:bucketError}=await sb.storage.createBucket(bucket,{public:true,fileSizeLimit:'2097152',allowedMimeTypes:[...allowed]});
+  if(bucketError&&!/already exists/i.test(bucketError.message||''))throw bucketError;
+  const {error:uploadError}=await sb.storage.from(bucket).upload(path,file,{contentType:file.type,upsert:false,cacheControl:'3600'});
+  if(uploadError)throw uploadError;
+  const {data:publicData}=sb.storage.from(bucket).getPublicUrl(path);
+  await audit({user,profile},'UPLOAD','Property Settings',property.property_code||propertyId,'Uploaded property logo: '+path);
+  return {url:publicData.publicUrl,path};
+}
+
 async function saveProperty(req:Request,b:any){
   const {caller,profile,user}=await callerDb(req);
   const id=String(b.id||'').trim(), propertyName=String(b.property_name||'').trim(), address=String(b.address||'').trim(), timezone=String(b.timezone||'').trim(), logoUrl=String(b.logo_url||'').trim(), primaryColor=String(b.primary_color||'').trim().toUpperCase(), secondaryColor=String(b.secondary_color||'').trim().toUpperCase();
@@ -134,6 +164,7 @@ async function saveProperty(req:Request,b:any){
 
 async function settingsAction(req:Request,a:any,action:string){
   if(action==='property_settings'){return json(req,{data:await propertySettings(req)})}
+  if(action==='upload_property_logo'){const result=await uploadPropertyLogo(req);if(result.error)return json(req,{error:result.error},400);return json(req,{ok:true,url:result.url,path:result.path})}
   if(action==='save_property'){const b=await req.json();const result=await saveProperty(req,b);if(result.error)return json(req,{error:result.error},400);return json(req,{ok:true,data:result.data})}
   if(action==='settings'){return json(req,{settings:await settingsData()})}
   if(action==='save_whatsapp'){
