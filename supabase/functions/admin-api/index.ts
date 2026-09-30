@@ -13,13 +13,13 @@ async function admin(req:Request){
   const token=auth.slice(7);
   const {data:{user},error}=await sb.auth.getUser(token);
   if(error||!user) return {error:json(req,{error:'Unauthorized'},401)};
-  const {data:profile,error:pe}=await db.from('admin_profiles').select('full_name,role,active,property_id').eq('user_id',user.id).maybeSingle();
+  const {data:profile,error:pe}=await sb.from('admin_profiles').select('full_name,role,active,property_id').eq('user_id',user.id).maybeSingle();
   if(pe) return {error:json(req,{error:'Authorization check failed'},500)};
   const role = String(profile?.role || '').toUpperCase();
   if(!profile?.active || !['ADMIN','MANAGER','SUPERADMIN'].includes(role)) return {error:json(req,{error:'Admin access denied'},403)};
   if(role!=='SUPERADMIN'&&!profile?.property_id) return {error:json(req,{error:'Property assignment required'},403)};
   const db=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_ANON_KEY')||Deno.env.get('SUPABASE_PUBLISHABLE_KEY')!,{global:{headers:{Authorization:`Bearer ${token}`}},auth:{persistSession:false,autoRefreshToken:false}});
-  return {user,profile};
+  return {user,profile,db};
 }
 
 Deno.serve(async req=>{
