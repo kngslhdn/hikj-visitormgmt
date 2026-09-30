@@ -17,7 +17,7 @@ main{max-width:1700px;margin:0 auto;padding:28px 30px 34px}.hero{display:flex;ju
 .recips{max-height:260px;overflow:auto;border:1px solid #e4e9ef;border-radius:10px;padding:8px;background:#fbfcfd}.recip{display:flex;gap:8px;padding:8px;border-bottom:1px solid #edf1f4;font-size:10px;align-items:flex-start}.recip:last-child{border-bottom:0}.recip small{display:block;color:var(--muted)}
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px}.stat{background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px 15px;box-shadow:0 4px 14px rgba(7,26,48,.035)}.stat b{display:block;font-size:25px;color:var(--navy)}.stat span{font-size:9px;color:var(--muted)}
 .table{overflow:auto}.table table{width:100%;border-collapse:collapse}.table th,.table td{padding:10px 9px;border-bottom:1px solid #edf0f2;text-align:left;font-size:10px}.table th{text-transform:uppercase;color:var(--muted);font-size:8px}.badge{padding:3px 7px;border-radius:999px;font-size:8px;font-weight:700}.urgent{background:#fee2e2;color:#991b1b}.high{background:#ffedd5;color:#9a3412}.normal{background:#fef9c3;color:#854d0e}.info{background:#e2e8f0;color:#475569}.active{background:#dcfce7;color:#166534}.draft{background:#f1f5f9;color:#64748b}
-.notice{margin-top:10px;font-size:10px;color:var(--green);min-height:16px}.notice.err{color:#991b1b}.login{min-height:100vh;display:grid;place-items:center;padding:20px;background:radial-gradient(circle at 50% 0,#173c64,#071a30 68%)}
+.notice{margin-top:10px;font-size:10px;color:var(--green);min-height:16px}.notice.err{color:#991b1b}.login{display:none!important;min-height:100vh;display:grid;place-items:center;padding:20px;background:radial-gradient(circle at 50% 0,#173c64,#071a30 68%)}
 .login-card{width:min(430px,100%);background:#fff;border-radius:18px;padding:30px;box-shadow:0 25px 80px #0007}
 .secureops-logo{width:120px;height:76px;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;color:var(--navy);font-weight:700;font-size:24px;letter-spacing:3px}.login-logo{width:120px;height:76px;object-fit:contain;display:block;margin:0 auto 12px;filter:brightness(0)}
 .login-brand{text-align:center;color:var(--navy);font-weight:700;font-size:20px}
@@ -116,12 +116,12 @@ main{max-width:1700px;margin:0 auto;padding:28px 30px 34px}.hero{display:flex;ju
 </style>
 </head>
 <body>
-<section id="sessionGate" class="login"><div class="login-card">
+<section id="sessionGate" class="login" aria-hidden="true"><div class="login-card">
 <div class="secureops-logo" aria-label="SECUREOPS">SECUREOPS</div>
 <div class="login-brand">SECUREOPS<small>EMERGENCY NOTIFICATION SYSTEM • ks.v.001</small></div>
 <h1>Opening Emergency Operations…</h1><p>Using your existing SECUREOPS Admin Console session.</p>
 </div></section>
-<section id="app" class="hidden">
+<section id="app">
 <header class="top"><div class="brand">EMERGENCY RESPONSE<small>EMERGENCY NOTIFICATION SYSTEM</small></div><div id="propertyBrandLogo" class="top-logo-text" aria-label="SECUREOPS">SECUREOPS</div><div class="top-user"><b id="userName">—</b><br><span id="userRole">—</span></div></header>
 <div class="actionbar"><div class="actionbar-inner"><a href="../admin/">Visitor Admin</a><button id="logout">Sign Out</button></div></div>
 <div class="shell"><aside class="side">
@@ -181,9 +181,16 @@ async function loadPropertyBranding(){
 }
 loadPropertyBranding();
 async function enter(s){session=s;try{const me=await api('me');$('userName').textContent=me.profile?.full_name||s.user.email;$('userRole').textContent=me.profile?.role||'ADMIN';$('sessionGate').classList.add('hidden');$('app').classList.remove('hidden');await boot()}catch(e){console.error('Emergency bootstrap failed:',e);await sb.auth.signOut();location.href='../admin/'}}
-async function initAuth(){const {data,error}=await sb.auth.getSession();if(error||!data.session){location.href='../admin/';return}await enter(data.session)}
+async function initAuth(){
+  const {data,error}=await sb.auth.getSession();
+  if(error||!data.session){location.href='../admin/';return}
+  await enter(data.session);
+}
 $('logout').onclick=async()=>{await sb.auth.signOut();location.href='../admin/'};
-sb.auth.onAuthStateChange((event,s)=>{if(event==='SIGNED_OUT'){location.href='../admin/'}else if(event==='SIGNED_IN'&&s){setTimeout(()=>enter(s),0)}});
+sb.auth.onAuthStateChange((event,s)=>{
+  if(event==='SIGNED_OUT'){location.href='../admin/'}
+  else if(event==='SIGNED_IN'&&s){setTimeout(()=>enter(s),0)}
+});
 
 async function boot(){const r=await api('bootstrap');types=r.types||[];templates=r.templates||[];contacts=r.contacts||[];groups=r.groups||[];systemSettings=Object.fromEntries((r.settings||[]).map(x=>[x.setting_key,x.setting_value]));renderTypes();renderTemplates();renderRecipients();renderGroups();applyDefaults();await refresh();syncSidebar();if(location.hash){const el=$(location.hash.slice(1));if(el)setTimeout(()=>el.scrollIntoView({block:'start'}),50)}}
 function renderTypes(){$('type').innerHTML='<option value="">Select</option>'+types.map(x=>'<option value="'+x.id+'">'+esc(x.name)+'</option>').join('');$('type').onchange=()=>{const t=types.find(x=>x.id===$('type').value);if(t){const r=document.querySelector('input[name=severity][value="'+(t.default_severity||'URGENT')+'"]');if(r)r.checked=true}}}
