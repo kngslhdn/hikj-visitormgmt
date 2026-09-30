@@ -40,11 +40,16 @@ async function auth(req: Request) {
   if (error || !user) throw new Error("Unauthorized");
   const { data: profile } = await admin
     .from("admin_profiles")
-    .select("user_id,full_name,role,active")
+    .select("user_id,full_name,role,active,property_id")
     .eq("user_id", user.id)
     .single();
   if (!profile?.active) throw new Error("Active admin profile required");
-  return { user, profile };
+  if (profile.role !== "SUPERADMIN" && !profile.property_id) throw new Error("Property assignment required");
+  const db = createClient(url, Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+    auth: { persistSession: false, autoRefreshToken: false }
+  });
+  return { user, profile, db };
 }
 
 function canConfigure(profile: any) {
@@ -55,7 +60,7 @@ function isSuperAdmin(profile: any) {
   return profile?.role === "SUPERADMIN";
 }
 
-async function settingsMap() {
+async function settingsMap(db: any) {
   const { data, error } = await admin
     .from("emergency_settings")
     .select("setting_key,setting_value,description,active")
@@ -69,8 +74,8 @@ async function settingsMap() {
   return out;
 }
 
-async function smtpSettings() {
-  const s = await settingsMap();
+async function smtpSettings(db: any) {
+  const s = await settingsMap(db);
   const host = s.smtp_host ?? Deno.env.get("SMTP_HOST");
   const port = Number(s.smtp_port ?? Deno.env.get("SMTP_PORT") ?? "587");
   const secure = Boolean(s.smtp_secure ?? (Deno.env.get("SMTP_SECURE") === "true"));
@@ -99,9 +104,9 @@ async function smtpSettings() {
   };
 }
 
-async function audit(user: any, profile: any, action: string, target: string, description: string) {
+async function audit(db: any, user: any, profile: any, action: string, target: string, description: string) {
   try {
-    const { error } = await admin.from("audit_logs").insert({
+    const { error } = await db.from("audit_logs").insert({
       user_id: user.id,
       user_name: profile.full_name || user.email,
       module: "EMERGENCY",
@@ -115,7 +120,7 @@ async function audit(user: any, profile: any, action: string, target: string, de
   }
 }
  
-async function selectedGroups(groupIds: string[]) {
+async function selectedGroups(db: any, groupIds: string[]) {
   if (!groupIds.length) return [];
   const { data, error } = await admin
     .from("emergency_contact_groups")
@@ -129,8 +134,8 @@ async function selectedGroups(groupIds: string[]) {
   return data || [];
 }
 
-async function resolveRecipients(groupIds: string[], contactIds: string[]) {
-  const groups = await selectedGroups(groupIds);
+async function resolveRecipients(db: any, groupIds: string[], contactIds: string[]) {
+  const groups = await selectedGroups(db, groupIds);
   const ids = new Set(contactIds);
   let memberships: Array<{group_id:string;contact_id:string}> = [];
 
@@ -208,7 +213,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
 
   try {
-    const { user, profile } = await auth(req);
+    const { user, profile, db } = await auth(req);
     const u = new URL(req.url);
     const action = u.searchParams.get("action") || "dashboard";
 
@@ -216,16 +221,16 @@ Deno.serve(async (req) => {
     if (action === "settings_bootstrap") {
       if (!canConfigure(profile)) throw new Error("Emergency Settings access requires ADMIN, MANAGER or SUPERADMIN.");
       const [types, templates, groups, contacts, members, settings, auditRows] = await Promise.all([
-        admin.from("emergency_incident_types").select("*").order("priority").order("name"),
-        admin.from("emergency_message_templates").select("*").order("name"),
-        admin.from("emergency_contact_groups").select("*").order("name"),
-        admin.from("emergency_contacts").select("*").order("priority").order("full_name"),
-        admin.from("emergency_group_members").select("group_id,contact_id"),
-        admin.from("emergency_settings").select("setting_key,setting_value,description,active,updated_at").order("setting_key"),
-        admin.from("audit_logs").select("*").eq("module","EMERGENCY").order("created_at",{ascending:false}).limit(100),
+        db.from("emergency_incident_types").select("*").order("priority").order("name"),
+        db.from("emergency_message_templates").select("*").order("name"),
+        db.from("emergency_contact_groups").select("*").order("name"),
+        db.from("emergency_contacts").select("*").order("priority").order("full_name"),
+        db.from("emergency_group_members").select("group_id,contact_id"),
+        db.from("emergency_settings").select("setting_key,setting_value,description,active,updated_at").order("setting_key"),
+        db.from("audit_logs").select("*").eq("module","EMERGENCY").order("created_at",{ascending:false}).limit(100),
       ]);
       for (const x of [types,templates,groups,contacts,members,settings,auditRows]) if (x.error) throw x.error;
-      const smtp = await smtpSettings();
+      const smtp = await smtpSettings(db);
       return json({
         profile,
         types: types.data || [],
@@ -272,7 +277,7 @@ Deno.serve(async (req) => {
         if (!value) throw new Error("SMTP credential value is required.");
         const r = await admin.rpc("emergency_set_smtp_secret", { p_name: name, p_secret: value });
         if (r.error) throw r.error;
-        await audit(user, profile, "UPDATE", name, "Updated protected SMTP credential.");
+        await audit(db, user, profile, "UPDATE", name, "Updated protected SMTP credential.");
         return json({ ok: true });
       }
 
@@ -287,11 +292,11 @@ Deno.serve(async (req) => {
           active: d.active !== false,
         };
         const q = d.id
-          ? admin.from("emergency_incident_types").update(payload).eq("id", d.id).select().single()
-          : admin.from("emergency_incident_types").insert(payload).select().single();
+          ? db.from("emergency_incident_types").update(payload).eq("id", d.id).select().single()
+          : db.from("emergency_incident_types").insert(payload).select().single();
         const r = await q;
         if (r.error) throw r.error;
-        await audit(user, profile, d.id ? "UPDATE" : "CREATE", payload.code, "Updated incident type configuration.");
+        await audit(db, user, profile, d.id ? "UPDATE" : "CREATE", payload.code, "Updated incident type configuration.");
         return json({ ok: true, row: r.data });
       }
 
@@ -307,11 +312,11 @@ Deno.serve(async (req) => {
           active: d.active !== false,
         };
         const q = d.id
-          ? admin.from("emergency_message_templates").update(payload).eq("id", d.id).select().single()
-          : admin.from("emergency_message_templates").insert(payload).select().single();
+          ? db.from("emergency_message_templates").update(payload).eq("id", d.id).select().single()
+          : db.from("emergency_message_templates").insert(payload).select().single();
         const r = await q;
         if (r.error) throw r.error;
-        await audit(user, profile, d.id ? "UPDATE" : "CREATE", payload.code, "Updated emergency message template.");
+        await audit(db, user, profile, d.id ? "UPDATE" : "CREATE", payload.code, "Updated emergency message template.");
         return json({ ok: true, row: r.data });
       }
 
@@ -325,11 +330,11 @@ Deno.serve(async (req) => {
           active: d.active !== false,
         };
         const q = d.id
-          ? admin.from("emergency_contact_groups").update(payload).eq("id", d.id).select().single()
-          : admin.from("emergency_contact_groups").insert(payload).select().single();
+          ? db.from("emergency_contact_groups").update(payload).eq("id", d.id).select().single()
+          : db.from("emergency_contact_groups").insert(payload).select().single();
         const r = await q;
         if (r.error) throw r.error;
-        await audit(user, profile, d.id ? "UPDATE" : "CREATE", payload.code, "Updated emergency contact group.");
+        await audit(db, user, profile, d.id ? "UPDATE" : "CREATE", payload.code, "Updated emergency contact group.");
         return json({ ok: true, row: r.data });
       }
 
@@ -343,7 +348,7 @@ Deno.serve(async (req) => {
         const duplicateErrors: string[] = [];
 
         if (email) {
-          let q = admin.from("emergency_contacts").select("id").eq("email", email).limit(1);
+          let q = db.from("emergency_contacts").select("id").eq("email", email).limit(1);
           if (d.id) q = q.neq("id", d.id);
           const r = await q.maybeSingle();
           if (r.error) throw r.error;
@@ -351,7 +356,7 @@ Deno.serve(async (req) => {
         }
 
         if (whatsapp) {
-          const all = await admin.from("emergency_contacts").select("id,whatsapp_number");
+          const all = await db.from("emergency_contacts").select("id,whatsapp_number");
           if (all.error) throw all.error;
           const duplicate = (all.data || []).some((row:any) =>
             row.id !== d.id &&
@@ -376,8 +381,8 @@ Deno.serve(async (req) => {
         };
 
         const q = d.id
-          ? admin.from("emergency_contacts").update(payload).eq("id", d.id).select().single()
-          : admin.from("emergency_contacts").insert(payload).select().single();
+          ? db.from("emergency_contacts").update(payload).eq("id", d.id).select().single()
+          : db.from("emergency_contacts").insert(payload).select().single();
         const r = await q;
 
         if (r.error) {
@@ -393,28 +398,28 @@ Deno.serve(async (req) => {
           throw r.error;
         }
 
-        await audit(user, profile, d.id ? "UPDATE" : "CREATE", payload.full_name, "Updated emergency contact.");
+        await audit(db, user, profile, d.id ? "UPDATE" : "CREATE", payload.full_name, "Updated emergency contact.");
         return json({ ok: true, row: r.data });
       }
 
       if (resource === "members") {
         if (!d.group_id) throw new Error("group_id is required.");
-        const group = await admin.from("emergency_contact_groups").select("id").eq("id", d.group_id).eq("active", true).maybeSingle();
+        const group = await db.from("emergency_contact_groups").select("id").eq("id", d.group_id).eq("active", true).maybeSingle();
         if (group.error) throw group.error;
         if (!group.data) throw new Error("Selected group is inactive or unavailable.");
         const contactIds = Array.isArray(d.contact_ids) ? [...new Set(d.contact_ids)] : [];
         if (contactIds.length) {
-          const valid = await admin.from("emergency_contacts").select("id").in("id", contactIds).eq("active", true);
+          const valid = await db.from("emergency_contacts").select("id").in("id", contactIds).eq("active", true);
           if (valid.error) throw valid.error;
           if ((valid.data || []).length !== contactIds.length) throw new Error("One or more selected contacts are inactive or unavailable.");
         }
-        const del = await admin.from("emergency_group_members").delete().eq("group_id", d.group_id);
+        const del = await db.from("emergency_group_members").delete().eq("group_id", d.group_id);
         if (del.error) throw del.error;
         if (contactIds.length) {
-          const ins = await admin.from("emergency_group_members").insert(contactIds.map((contact_id: string) => ({group_id:d.group_id,contact_id})));
+          const ins = await db.from("emergency_group_members").insert(contactIds.map((contact_id: string) => ({group_id:d.group_id,contact_id})));
           if (ins.error) throw ins.error;
         }
-        await audit(user, profile, "UPDATE", d.group_id, "Updated emergency group membership.");
+        await audit(db, user, profile, "UPDATE", d.group_id, "Updated emergency group membership.");
         return json({ ok: true });
       }
 
@@ -435,9 +440,9 @@ Deno.serve(async (req) => {
           updated_by: user.id,
           updated_at: new Date().toISOString(),
         };
-        const r = await admin.from("emergency_settings").upsert(payload,{onConflict:"setting_key"}).select().single();
+        const r = await db.from("emergency_settings").upsert(payload,{onConflict:"setting_key"}).select().single();
         if (r.error) throw r.error;
-        await audit(user, profile, "UPDATE", d.setting_key, "Updated emergency system setting.");
+        await audit(db, user, profile, "UPDATE", d.setting_key, "Updated emergency system setting.");
         return json({ ok: true, row: r.data });
       }
 
@@ -447,14 +452,14 @@ Deno.serve(async (req) => {
 
         if (action === "bootstrap") {
       const [a, b, c, d, settings] = await Promise.all([
-        admin.from("emergency_incident_types").select("*").eq("active", true).order("priority").order("name"),
-        admin.from("emergency_message_templates").select("*").eq("active", true).order("name"),
-        admin.from("emergency_contacts").select("*").eq("active", true).order("priority").order("full_name"),
-        admin.from("emergency_contact_groups").select("*").eq("active", true).order("name"),
-        admin.from("emergency_settings").select("setting_key,setting_value").eq("active", true).order("setting_key"),
+        db.from("emergency_incident_types").select("*").eq("active", true).order("priority").order("name"),
+        db.from("emergency_message_templates").select("*").eq("active", true).order("name"),
+        db.from("emergency_contacts").select("*").eq("active", true).order("priority").order("full_name"),
+        db.from("emergency_contact_groups").select("*").eq("active", true).order("name"),
+        db.from("emergency_settings").select("setting_key,setting_value").eq("active", true).order("setting_key"),
       ]);
       for (const x of [a,b,c,d,settings]) if (x.error) throw x.error;
-      const smtp = await smtpSettings();
+      const smtp = await smtpSettings(db);
       return json({
         types: a.data || [],
         templates: b.data || [],
@@ -470,14 +475,14 @@ Deno.serve(async (req) => {
       const start = new Date();
       start.setHours(0, 0, 0, 0);
       const [inc, not, ack, groups] = await Promise.all([
-        admin.from("emergency_incidents").select("*").order("created_at", { ascending: false }).limit(30),
-        admin.from("emergency_notifications").select("id,status,created_at:queued_at", { count: "exact" }).gte("queued_at", start.toISOString()),
-        admin.from("emergency_incident_recipients").select("id,emergency_incidents!inner(status),emergency_acknowledgements!left(id)", { count: "exact" }).in("emergency_incidents.status", ["ACTIVE", "MONITORING"]),
-        admin.from("emergency_contact_groups").select("id,name,whatsapp_group_url").eq("active", true),
+        db.from("emergency_incidents").select("*").order("created_at", { ascending: false }).limit(30),
+        db.from("emergency_notifications").select("id,status,created_at:queued_at", { count: "exact" }).gte("queued_at", start.toISOString()),
+        db.from("emergency_incident_recipients").select("id,emergency_incidents!inner(status),emergency_acknowledgements!left(id)", { count: "exact" }).in("emergency_incidents.status", ["ACTIVE", "MONITORING"]),
+        db.from("emergency_contact_groups").select("id,name,whatsapp_group_url").eq("active", true),
       ]);
       const active = (inc.data || []).filter((x: any) => ["ACTIVE", "MONITORING"].includes(x.status));
-      const smtp = await smtpSettings();
-      const settingRows = await admin.from("emergency_settings").select("setting_key,setting_value").eq("active",true);
+      const smtp = await smtpSettings(db);
+      const settingRows = await db.from("emergency_settings").select("setting_key,setting_value").eq("active",true);
       if (settingRows.error) throw settingRows.error;
       const settingMap: Record<string, any> = {};
       for (const row of settingRows.data || []) settingMap[row.setting_key] = row.setting_value;
@@ -503,11 +508,11 @@ Deno.serve(async (req) => {
       const allowedReasons = new Set(["FALSE_ALARM","HANDLED","UNDER_CONTROL","EVAC_COMPLETED","TECHNICAL_RESOLVED","OTHER"]);
       if (!allowedReasons.has(reason)) throw new Error("A valid resolution reason is required.");
       if (!notes) throw new Error("Resolution notes are required.");
-      const current = await admin.from("emergency_incidents").select("*").eq("id", b.incident_id).single();
+      const current = await db.from("emergency_incidents").select("*").eq("id", b.incident_id).single();
       if (current.error) throw current.error;
       if (!["ACTIVE","MONITORING"].includes(current.data.status)) throw new Error("Only ACTIVE or MONITORING incidents can be resolved.");
       const now = new Date().toISOString();
-      const upd = await admin.from("emergency_incidents").update({
+      const upd = await db.from("emergency_incidents").update({
         status: "RESOLVED",
         resolved_at: now,
         resolved_by: user.id,
@@ -516,7 +521,7 @@ Deno.serve(async (req) => {
         updated_at: now,
       }).eq("id", b.incident_id).select().single();
       if (upd.error) throw upd.error;
-      const timeline = await admin.from("emergency_incident_updates").insert({
+      const timeline = await db.from("emergency_incident_updates").insert({
         incident_id: b.incident_id,
         status: "RESOLVED",
         title: "Incident Resolved",
@@ -525,7 +530,7 @@ Deno.serve(async (req) => {
       });
       if (timeline.error) throw timeline.error;
       // Resolution notifications use the same configured WhatsApp groups as the original incident.
-      const resolutionGroups = await admin.from("emergency_contact_groups")
+      const resolutionGroups = await db.from("emergency_contact_groups")
         .select("id,name,whatsapp_group_url")
         .eq("active", true)
         .not("whatsapp_group_url", "is", null);
@@ -553,7 +558,7 @@ Deno.serve(async (req) => {
         }));
 
       for (const g of resolutionDispatches) {
-        await admin.from("emergency_notifications").insert({
+        await db.from("emergency_notifications").insert({
           incident_id: b.incident_id,
           group_id: g.group_id,
           channel: "WHATSAPP",
@@ -562,7 +567,7 @@ Deno.serve(async (req) => {
         });
       }
 
-      await audit(user, profile, "RESOLVE_INCIDENT", upd.data.incident_id, `Resolved incident. reason=${reason}`);
+      await audit(db, user, profile, "RESOLVE_INCIDENT", upd.data.incident_id, `Resolved incident. reason=${reason}`);
       return json({
         ok: true,
         incident: upd.data,
@@ -576,11 +581,11 @@ Deno.serve(async (req) => {
       if (!b.incident_id) throw new Error("incident_id is required.");
       const notes = String(b.notes || "").trim();
       if (!notes) throw new Error("Reopen notes are required.");
-      const current = await admin.from("emergency_incidents").select("*").eq("id", b.incident_id).single();
+      const current = await db.from("emergency_incidents").select("*").eq("id", b.incident_id).single();
       if (current.error) throw current.error;
       if (!["RESOLVED","CLOSED","FALSE_ALARM"].includes(current.data.status)) throw new Error("Only resolved/closed incidents can be reopened.");
       const now = new Date().toISOString();
-      const upd = await admin.from("emergency_incidents").update({
+      const upd = await db.from("emergency_incidents").update({
         status: "ACTIVE",
         resolved_at: null,
         resolved_by: null,
@@ -589,7 +594,7 @@ Deno.serve(async (req) => {
         updated_at: now,
       }).eq("id", b.incident_id).select().single();
       if (upd.error) throw upd.error;
-      const timeline = await admin.from("emergency_incident_updates").insert({
+      const timeline = await db.from("emergency_incident_updates").insert({
         incident_id: b.incident_id,
         status: "ACTIVE",
         title: "Incident Reopened",
@@ -597,7 +602,7 @@ Deno.serve(async (req) => {
         created_by: user.id,
       });
       if (timeline.error) throw timeline.error;
-      await audit(user, profile, "REOPEN_INCIDENT", upd.data.incident_id, "Reopened incident.");
+      await audit(db, user, profile, "REOPEN_INCIDENT", upd.data.incident_id, "Reopened incident.");
       return json({ ok: true, incident: upd.data });
     }
 
@@ -605,9 +610,9 @@ Deno.serve(async (req) => {
       const id = u.searchParams.get("incident_id");
       if (!id) throw new Error("incident_id required");
       const [i, n, up] = await Promise.all([
-        admin.from("emergency_incidents").select("*,emergency_incident_types(name)").eq("id", id).single(),
-        admin.from("emergency_notifications").select("*,emergency_incident_recipients(contact_id,emergency_contacts(full_name)),emergency_contact_groups(name)").eq("incident_id", id).order("queued_at"),
-        admin.from("emergency_incident_updates").select("*").eq("incident_id", id).order("created_at", { ascending: true }),
+        db.from("emergency_incidents").select("*,emergency_incident_types(name)").eq("id", id).single(),
+        db.from("emergency_notifications").select("*,emergency_incident_recipients(contact_id,emergency_contacts(full_name)),emergency_contact_groups(name)").eq("incident_id", id).order("queued_at"),
+        db.from("emergency_incident_updates").select("*").eq("incident_id", id).order("created_at", { ascending: true }),
       ]);
       const notifications = (n.data || []).map((x: any) => ({
         id: x.id,
@@ -622,7 +627,7 @@ Deno.serve(async (req) => {
     
     if (action === "smtp_test" && req.method === "POST") {
       if (!isSuperAdmin(profile)) throw new Error("SMTP test requires SUPERADMIN.");
-      const cfg = await smtpSettings();
+      const cfg = await smtpSettings(db);
       if (!cfg.configured) throw new Error("SMTP is not fully configured. Check host, From address and SMTP secrets.");
       const result = await sendEmail(
         [user.email!],
@@ -637,7 +642,7 @@ Deno.serve(async (req) => {
         },
         cfg
       );
-      await audit(user, profile, "TEST", "SMTP", "Executed SMTP test email.");
+      await audit(db, user, profile, "TEST", "SMTP", "Executed SMTP test email.");
       if (result.status !== "SENT") throw new Error(result.error || "SMTP test failed.");
       return json({ ok: true, status: result.status, recipient: user.email });
     }
@@ -650,10 +655,10 @@ Deno.serve(async (req) => {
         throw new Error("Title, message and at least one recipient group/contact are required.");
       }
 
-      const { groups, contacts, memberships } = await resolveRecipients(groupIds, directContactIds);
+      const { groups, contacts, memberships } = await resolveRecipients(db, groupIds, directContactIds);
       const whatsappGroups = groups.filter((g: any) => g.whatsapp_group_url);
-      const smtp = await smtpSettings();
-      const systemSettings = await settingsMap();
+      const smtp = await smtpSettings(db);
+      const systemSettings = await settingsMap(db);
       const productionEnabled = systemSettings.production_enabled !== false;
       const productionReady = productionEnabled && smtp.configured && whatsappGroups.length > 0;
 
@@ -664,7 +669,7 @@ Deno.serve(async (req) => {
         throw new Error("PRODUCTION EMERGENCY BLOCKED: SMTP and an ERT WhatsApp group must be configured first.");
       }
 
-      const { data: incident, error } = await admin.from("emergency_incidents").insert({
+      const { data: incident, error } = await db.from("emergency_incidents").insert({
         incident_type_id: b.incident_type_id || null,
         severity: b.severity || "URGENT",
         title: b.title,
@@ -683,12 +688,12 @@ Deno.serve(async (req) => {
       }
       let recips: any[] = [];
       if (recipientRows.length) {
-        const r = await admin.from("emergency_incident_recipients").insert(recipientRows).select("id,contact_id,group_id,emergency_contacts(*)");
+        const r = await db.from("emergency_incident_recipients").insert(recipientRows).select("id,contact_id,group_id,emergency_contacts(*)");
         if (r.error) throw r.error;
         recips = r.data || [];
       }
 
-      await admin.from("emergency_incident_updates").insert({
+      await db.from("emergency_incident_updates").insert({
         incident_id: incident.id,
         status: "ACTIVE",
         title: "Incident Created",
@@ -704,7 +709,7 @@ Deno.serve(async (req) => {
 
       if (uniqueEmails.length) {
         for (const r of recips.filter((r:any) => r.emergency_contacts?.email)) {
-          await admin.from("emergency_notifications").insert({
+          await db.from("emergency_notifications").insert({
             incident_id: incident.id,
             recipient_id: r.id,
             channel: "EMAIL",
@@ -717,7 +722,7 @@ Deno.serve(async (req) => {
 
       for (const g of groups) {
         if (g.whatsapp_group_url) {
-          await admin.from("emergency_notifications").insert({
+          await db.from("emergency_notifications").insert({
             incident_id: incident.id,
             group_id: g.id,
             channel: "WHATSAPP",
@@ -729,7 +734,7 @@ Deno.serve(async (req) => {
 
       const smsContacts = contacts.filter((c: any) => c.phone_number);
       for (const r of recips.filter((r: any) => r.emergency_contacts?.phone_number)) {
-        await admin.from("emergency_notifications").insert({
+        await db.from("emergency_notifications").insert({
           incident_id: incident.id,
           recipient_id: r.id,
           channel: "SMS",
@@ -738,7 +743,7 @@ Deno.serve(async (req) => {
         });
       }
 
-      await admin.from("audit_logs").insert({
+      await db.from("audit_logs").insert({
         user_id: user.id,
         user_name: profile.full_name || user.email,
         module: "EMERGENCY",
