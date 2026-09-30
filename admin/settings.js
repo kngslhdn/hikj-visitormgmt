@@ -7,6 +7,7 @@ const style=()=>{if($('s-style'))return;const st=document.createElement('style')
 const $=id=>document.getElementById(id),current=token=>token==null||token===window.HIKJAdminPageToken;
 async function token(){const c=window.supabase.createClient(U,K);const {data}=await c.auth.getSession();if(!data.session)throw Error('Session expired. Please sign in again');return data.session.access_token}
 async function req(action,method='GET',body=null){const t=await token();const r=await fetch(API+'?action='+encodeURIComponent(action),{method,headers:{apikey:K,Authorization:'Bearer '+t,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});const j=await r.json().catch(()=>({}));if(!r.ok)throw Error(j.error||'Request failed');return j}
+async function reqMultipart(action,form){const t=await token();const r=await fetch(API+'?action='+encodeURIComponent(action),{method:'POST',headers:{apikey:K,Authorization:'Bearer '+t},body:form});const j=await r.json().catch(()=>({}));if(!r.ok)throw Error(j.error||'Request failed');return j}
 function msg(id,text,err=false){const e=$(id);if(!e)return;e.textContent=text||'';e.classList.toggle('err',!!err)}
 function card(title,sub,body,actions=''){return '<section class="s-card"><div class="s-head"><div><h2>'+esc(title)+'</h2><small>'+esc(sub)+'</small></div>'+(actions?'<div class="s-head-actions">'+actions+'</div>':'')+'</div><div class="s-body">'+body+'</div></section>'}
 async function properties(token){
@@ -52,12 +53,19 @@ async function properties(token){
      try{
        let logoUrl=$('prop_logo_'+i).value.trim();
        const logoFile=$('prop_logo_file_'+i)?.files?.[0]||null;
-       if(logoFile){
-         msg('propMsg_'+i,'Uploading logo…');
-         logoUrl=await uploadPropertyLogo(logoFile,p.id,p.property_code);
-       }
        const payload={id:p.id,property_name:$('prop_name_'+i).value.trim(),address:$('prop_address_'+i).value.trim(),timezone:$('prop_timezone_'+i).value.trim(),logo_url:logoUrl,primary_color:pt.value.trim(),secondary_color:st.value.trim(),is_active:$('prop_active_'+i).value==='true'};
-       await req('save_property','POST',payload);
+       let saveResult;
+       if(logoFile){
+         msg('propMsg_'+i,'Saving property & uploading logo…');
+         const form=new FormData();
+         Object.entries(payload).forEach(([k,v])=>form.append(k,String(v)));
+         form.append('logo_file',logoFile,logoFile.name);
+         saveResult=await reqMultipart('save_property',form);
+         logoUrl=saveResult.data?.logo_url||logoUrl;
+         payload.logo_url=logoUrl;
+       }else{
+         saveResult=await req('save_property','POST',payload);
+       }
        $('prop_logo_'+i).value=payload.logo_url||'';
        if(logoFile)logoFile.value='';
        const preview=document.querySelectorAll('.s-brand-preview')[i];
