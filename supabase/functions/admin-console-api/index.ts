@@ -14,7 +14,7 @@ async function admin(req:Request){
   const token=auth.slice(7);
   const {data:{user},error}=await sb.auth.getUser(token);
   if(error||!user) return {error:json(req,{error:'Unauthorized'},401)};
-  const {data:profile,error:pe}=await sb.from('admin_profiles').select('full_name,role,active').eq('user_id',user.id).maybeSingle();
+  const {data:profile,error:pe}=await sb.from('admin_profiles').select('full_name,role,active,property_id').eq('user_id',user.id).maybeSingle();
   if(pe) return {error:json(req,{error:'Authorization check failed'},500)};
   const role = String(profile?.role || '').toUpperCase();
   if(!profile?.active || !['ADMIN','MANAGER','SUPERADMIN'].includes(role)) return {error:json(req,{error:'Admin access denied'},403)};
@@ -90,17 +90,16 @@ async function settingsData(){
   }
   return out;
 }
-async function callerDb(req:Request){
+async function callerDb(req:Request,a?:any){
   const auth=req.headers.get('Authorization')||'';
   if(!auth.startsWith('Bearer '))throw new Error('Unauthorized');
   const token=auth.slice(7);
-  const {data:{user},error}=await sb.auth.getUser(token);
+  const {data:{user},error}=a?.user?{data:{user:a.user},error:null}:await sb.auth.getUser(token);
   if(error||!user)throw new Error('Unauthorized');
   const caller=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_ANON_KEY')||Deno.env.get('SUPABASE_PUBLISHABLE_KEY')!,{global:{headers:{Authorization:`Bearer ${token}`}},auth:{persistSession:false,autoRefreshToken:false}});
-  const {data:profile,error:pe}=await caller.from('admin_profiles').select('user_id,full_name,role,active,property_id').eq('user_id',user.id).eq('active',true).maybeSingle();
-  if(pe)throw pe;
+  const profile=a?.profile||((await caller.from('admin_profiles').select('user_id,full_name,role,active,property_id').eq('user_id',user.id).eq('active',true).maybeSingle()).data);
   const role=String(profile?.role||'').toUpperCase();
-  if(!profile||!['ADMIN','MANAGER','SUPERADMIN'].includes(role))throw new Error('Admin access denied');
+  if(!profile||!profile.active||!['ADMIN','MANAGER','SUPERADMIN'].includes(role))throw new Error('Admin access denied');
   if(role!=='SUPERADMIN'&&!profile.property_id)throw new Error('Property assignment required');
   return {caller,user,profile};
 }
@@ -110,8 +109,8 @@ async function propertySettings(req:Request){
   if(String(profile.role).toUpperCase()!=='SUPERADMIN')q=q.eq('id',profile.property_id);
   const {data,error}=await q;if(error)throw error;return data||[];
 }
-async function uploadPropertyLogo(req:Request){
-  const {caller,profile,user}=await callerDb(req);
+async function uploadPropertyLogo(req:Request,a?:any){
+  const {caller,profile,user}=await callerDb(req,a);
   const role=String(profile.role||'').toUpperCase();
   if(role!=='SUPERADMIN'&&role!=='MANAGER')throw new Error('Property logo upload is not permitted for this role.');
   const form=await req.formData();
@@ -143,8 +142,8 @@ async function uploadPropertyLogo(req:Request){
   return {url:publicData.publicUrl,path};
 }
 
-async function saveProperty(req:Request,b:any){
-  const {caller,profile,user}=await callerDb(req);
+async function saveProperty(req:Request,b:any,a?:any){
+  const {caller,profile,user}=await callerDb(req,a);
   const logoFile=b.logo_file instanceof File?b.logo_file:null;
   const id=String(b.id||'').trim(), propertyName=String(b.property_name||'').trim(), address=String(b.address||'').trim(), timezone=String(b.timezone||'').trim(), logoUrl=String(b.logo_url||'').trim(), primaryColor=String(b.primary_color||'').trim().toUpperCase(), secondaryColor=String(b.secondary_color||'').trim().toUpperCase();
   const role=String(profile.role||'').toUpperCase();
@@ -165,11 +164,16 @@ async function saveProperty(req:Request,b:any){
     const ext=(logoFile.name.split('.').pop()||'bin').toLowerCase().replace(/[^a-z0-9]/g,'')||'bin';
     const path=safeCode+'/'+crypto.randomUUID()+'.'+ext;
     const bucket='property-assets';
-    const {error:uploadError}=await sb.storage.from(bucket).upload(path,logoFile,{contentType:logoFile.type,upsert:false,cacheControl:'3600'});
+    let {error:uploadError}=await sb.storage.from(bucket).upload(path,logoFile,{contentType:logoFile.type,upsert:false,cacheControl:'3600'});
+    if(uploadError&&/bucket.*not.*found|not.*found.*bucket/i.test(uploadError.message||'')){
+      const {error:bucketError}=await sb.storage.createBucket(bucket,{public:true,fileSizeLimit:'2097152',allowedMimeTypes:[...allowed]});
+      if(bucketError&&!/already exists/i.test(bucketError.message||''))throw bucketError;
+      ({error:uploadError}=await sb.storage.from(bucket).upload(path,logoFile,{contentType:logoFile.type,upsert:false,cacheControl:'3600'}));
+    }
     if(uploadError)throw uploadError;
     finalLogoUrl=sb.storage.from(bucket).getPublicUrl(path).data.publicUrl;
   }
-  const patch={property_name:propertyName,address:address||null,timezone,logo_url:finalLogoUrl,primary_color:primaryColor||null,secondary_color:secondaryColor||null,is_active:b.is_active!==false};
+  const patch={property_name:propertyName,address:address||null,timezone,logo_url:finalLogoUrl,primary_color:primaryColor||null,secondary_color:secondaryColor||null,is_active:!(b.is_active===false||String(b.is_active).toLowerCase()==='false')};
   let updateQ=caller.from('properties').update(patch).eq('id',id);
   if(role!=='SUPERADMIN')updateQ=updateQ.eq('id',profile.property_id);
   const {data:after,error}=await updateQ.select('id,property_code,property_name,logo_url,primary_color,secondary_color,timezone,address,is_active,updated_at').single();
@@ -181,7 +185,7 @@ async function saveProperty(req:Request,b:any){
 
 async function settingsAction(req:Request,a:any,action:string){
   if(action==='property_settings'){return json(req,{data:await propertySettings(req)})}
-  if(action==='upload_property_logo'){const result=await uploadPropertyLogo(req);if(result.error)return json(req,{error:result.error},400);return json(req,{ok:true,url:result.url,path:result.path})}
+  if(action==='upload_property_logo'){const result=await uploadPropertyLogo(req,a);if(result.error)return json(req,{error:result.error},400);return json(req,{ok:true,url:result.url,path:result.path})}
   if(action==='save_property'){
     const contentType=(req.headers.get('content-type')||'').toLowerCase();
     let b:any;
@@ -192,7 +196,7 @@ async function settingsAction(req:Request,a:any,action:string){
     }else{
       b=await req.json();
     }
-    const result=await saveProperty(req,b);
+    const result=await saveProperty(req,b,a);
     if(result.error)return json(req,{error:result.error},400);
     return json(req,{ok:true,data:result.data});
   }
