@@ -131,9 +131,12 @@ async function uploadPropertyLogo(req:Request){
   const ext=(file.name.split('.').pop()||'bin').toLowerCase().replace(/[^a-z0-9]/g,'')||'bin';
   const path=safeCode+'/'+crypto.randomUUID()+'.'+ext;
   const bucket='property-assets';
-  const {error:bucketError}=await sb.storage.createBucket(bucket,{public:true,fileSizeLimit:'2097152',allowedMimeTypes:[...allowed]});
-  if(bucketError&&!/already exists/i.test(bucketError.message||''))throw bucketError;
-  const {error:uploadError}=await sb.storage.from(bucket).upload(path,file,{contentType:file.type,upsert:false,cacheControl:'3600'});
+  let {error:uploadError}=await sb.storage.from(bucket).upload(path,file,{contentType:file.type,upsert:false,cacheControl:'3600'});
+  if(uploadError&&/bucket.*not.*found|not.*found.*bucket/i.test(uploadError.message||'')){
+    const {error:bucketError}=await sb.storage.createBucket(bucket,{public:true,fileSizeLimit:'2097152',allowedMimeTypes:[...allowed]});
+    if(bucketError&&!/already exists/i.test(bucketError.message||''))throw bucketError;
+    ({error:uploadError}=await sb.storage.from(bucket).upload(path,file,{contentType:file.type,upsert:false,cacheControl:'3600'}));
+  }
   if(uploadError)throw uploadError;
   const {data:publicData}=sb.storage.from(bucket).getPublicUrl(path);
   await audit({user,profile},'UPLOAD','Property Settings',property.property_code||propertyId,'Uploaded property logo: '+path);
@@ -142,6 +145,7 @@ async function uploadPropertyLogo(req:Request){
 
 async function saveProperty(req:Request,b:any){
   const {caller,profile,user}=await callerDb(req);
+  const logoFile=b.logo_file instanceof File?b.logo_file:null;
   const id=String(b.id||'').trim(), propertyName=String(b.property_name||'').trim(), address=String(b.address||'').trim(), timezone=String(b.timezone||'').trim(), logoUrl=String(b.logo_url||'').trim(), primaryColor=String(b.primary_color||'').trim().toUpperCase(), secondaryColor=String(b.secondary_color||'').trim().toUpperCase();
   const role=String(profile.role||'').toUpperCase();
   if(role==='ADMIN')return {error:'Property settings are read-only for ADMIN.'};
@@ -152,7 +156,20 @@ async function saveProperty(req:Request,b:any){
   if(role!=='SUPERADMIN')beforeQ=beforeQ.eq('id',profile.property_id);
   const {data:before,error:be}=await beforeQ.maybeSingle();
   if(be)throw be;if(!before)return {error:'Property not found or access denied.'};
-  const patch={property_name:propertyName,address:address||null,timezone,logo_url:logoUrl||null,primary_color:primaryColor||null,secondary_color:secondaryColor||null,is_active:b.is_active!==false};
+  let finalLogoUrl=logoUrl||null;
+  if(logoFile){
+    if(logoFile.size>2*1024*1024)throw new Error('Logo file must be 2 MB or smaller.');
+    const allowed=new Set(['image/png','image/jpeg','image/webp','image/svg+xml']);
+    if(!allowed.has(logoFile.type))throw new Error('Logo must be PNG, JPG, WEBP or SVG.');
+    const safeCode=String(before.property_code||'PROPERTY').replace(/[^A-Z0-9_-]/gi,'_').slice(0,40)||'PROPERTY';
+    const ext=(logoFile.name.split('.').pop()||'bin').toLowerCase().replace(/[^a-z0-9]/g,'')||'bin';
+    const path=safeCode+'/'+crypto.randomUUID()+'.'+ext;
+    const bucket='property-assets';
+    const {error:uploadError}=await sb.storage.from(bucket).upload(path,logoFile,{contentType:logoFile.type,upsert:false,cacheControl:'3600'});
+    if(uploadError)throw uploadError;
+    finalLogoUrl=sb.storage.from(bucket).getPublicUrl(path).data.publicUrl;
+  }
+  const patch={property_name:propertyName,address:address||null,timezone,logo_url:finalLogoUrl,primary_color:primaryColor||null,secondary_color:secondaryColor||null,is_active:b.is_active!==false};
   let updateQ=caller.from('properties').update(patch).eq('id',id);
   if(role!=='SUPERADMIN')updateQ=updateQ.eq('id',profile.property_id);
   const {data:after,error}=await updateQ.select('id,property_code,property_name,logo_url,primary_color,secondary_color,timezone,address,is_active,updated_at').single();
@@ -165,7 +182,20 @@ async function saveProperty(req:Request,b:any){
 async function settingsAction(req:Request,a:any,action:string){
   if(action==='property_settings'){return json(req,{data:await propertySettings(req)})}
   if(action==='upload_property_logo'){const result=await uploadPropertyLogo(req);if(result.error)return json(req,{error:result.error},400);return json(req,{ok:true,url:result.url,path:result.path})}
-  if(action==='save_property'){const b=await req.json();const result=await saveProperty(req,b);if(result.error)return json(req,{error:result.error},400);return json(req,{ok:true,data:result.data})}
+  if(action==='save_property'){
+    const contentType=(req.headers.get('content-type')||'').toLowerCase();
+    let b:any;
+    if(contentType.includes('multipart/form-data')){
+      const form=await req.formData();
+      b=Object.fromEntries([...form.entries()].filter(([k,v])=>!(v instanceof File)));
+      b.logo_file=form.get('logo_file');
+    }else{
+      b=await req.json();
+    }
+    const result=await saveProperty(req,b);
+    if(result.error)return json(req,{error:result.error},400);
+    return json(req,{ok:true,data:result.data});
+  }
   if(action==='settings'){return json(req,{settings:await settingsData()})}
   if(action==='save_whatsapp'){
     const b=await req.json(),phone=String(b.phone_number||'').replace(/[^0-9]/g,'');
