@@ -284,7 +284,16 @@ Deno.serve(async req=>{
       const discrepancyKeys=transactionRows.filter(row=>!!row.discrepancy).length;
       const partialKeys=transactionRows.filter(row=>Number(row.returned_quantity||0)>0&&Number(row.outstanding_quantity||0)>0).length;
       const ready=Math.max((totalPackages.count||0)-(distAll.count||0),0);
-      return json(req,{profile:auth.profile,summary:{total_visitors:v.count||0,today_entry:e.count||0,today_exit:x.count||0,currently_inside:inside.count||0,visitor_overstay:overstayVisitors.length,today_key_borrowing:b.count||0,today_key_return:r.count||0,today_packages:p.count||0,outstanding_keys:outstandingQty,outstanding_key_transactions:overdueRows.length,borrowed_keys:borrowedRows.reduce((n,row)=>n+Number(row.outstanding_quantity||0),0),active_key_transactions:transactionRows.filter(row=>Number(row.outstanding_quantity||0)>0).length,discrepancy_keys:discrepancyKeys,partial_key_transactions:partialKeys,total_submissions:sub.count||0,total_packages:totalPackages.count||0,distributed_packages:distAll.count||0,distributed_packages_today:distToday.count||0,ready_packages:ready}});
+      let branding:any=null;
+      const brandingQ=sb.from('properties').select('id,property_code,property_name,logo_url,primary_color,secondary_color').eq('is_active',true);
+      if(String(auth.profile?.role||'').toUpperCase()==='SUPERADMIN'){
+        brandingQ.order('property_name',{ascending:true}).limit(1);
+      }else{
+        brandingQ.eq('id',auth.profile?.property_id).limit(1);
+      }
+      const {data:brandingRows}=await brandingQ;
+      branding=brandingRows?.[0]||null;
+      return json(req,{profile:auth.profile,branding,summary:{total_visitors:v.count||0,today_entry:e.count||0,today_exit:x.count||0,currently_inside:inside.count||0,visitor_overstay:overstayVisitors.length,today_key_borrowing:b.count||0,today_key_return:r.count||0,today_packages:p.count||0,outstanding_keys:outstandingQty,outstanding_key_transactions:overdueRows.length,borrowed_keys:borrowedRows.reduce((n,row)=>n+Number(row.outstanding_quantity||0),0),active_key_transactions:transactionRows.filter(row=>Number(row.outstanding_quantity||0)>0).length,discrepancy_keys:discrepancyKeys,partial_key_transactions:partialKeys,total_submissions:sub.count||0,total_packages:totalPackages.count||0,distributed_packages:distAll.count||0,distributed_packages_today:distToday.count||0,ready_packages:ready}});
     }
     if(action==='activity'){const n=limitOf(url.searchParams.get('limit'),100,500);const {data,error}=await sb.from('recent_activity').select('*').order('submitted_at',{ascending:false}).limit(n);if(error)throw error;return json(req,{data:data||[]})}
     if(action==='inside'){const n=limitOf(url.searchParams.get('limit'),500,1000);const {data,error}=await sb.from('currently_inside').select('*').order('entry_at',{ascending:false}).limit(n);if(error)throw error;return json(req,{data:data||[]})}
