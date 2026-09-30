@@ -122,7 +122,7 @@ main{max-width:1700px;margin:0 auto;padding:28px 30px 34px}.hero{display:flex;ju
 <h1>Opening Emergency Operations…</h1><p>Using your existing SECUREOPS Admin Console session.</p>
 </div></section>
 <section id="app" class="hidden">
-<header class="top"><div class="brand">EMERGENCY RESPONSE<small>EMERGENCY NOTIFICATION SYSTEM</small></div><div class="top-logo-text" aria-label="SECUREOPS">SECUREOPS</div><div class="top-user"><b id="userName">—</b><br><span id="userRole">—</span></div></header>
+<header class="top"><div class="brand">EMERGENCY RESPONSE<small>EMERGENCY NOTIFICATION SYSTEM</small></div><div id="propertyBrandLogo" class="top-logo-text" aria-label="SECUREOPS">SECUREOPS</div><div class="top-user"><b id="userName">—</b><br><span id="userRole">—</span></div></header>
 <div class="actionbar"><div class="actionbar-inner"><a href="../admin/">Visitor Admin</a><button id="logout">Sign Out</button></div></div>
 <div class="shell"><aside class="side">
 <div class="side-title">MAIN</div><nav class="side-nav">
@@ -172,6 +172,14 @@ const sb=window.supabase.createClient(U,K,{auth:{persistSession:true,autoRefresh
 const $=id=>document.getElementById(id), esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
 let session=null, types=[], templates=[], contacts=[], groups=[], systemSettings={}, currentWaDispatches=[];
 async function api(action,method='GET',body=null,query=null){const qs=new URLSearchParams({action,...(query||{})});const r=await fetch(API+'?'+qs.toString(),{method,headers:{apikey:K,Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});const j=await r.json().catch(()=>({}));if(!r.ok)throw Error(j.error||'Request failed');return j}
+async function loadPropertyBranding(){
+ try{
+  const r=await fetch(U+'/functions/v1/visitor-submit',{headers:{apikey:K}});
+  const j=await r.json();const b=j.branding,url=String(b?.logo_url||'').trim(),wrap=$('propertyBrandLogo');
+  if(url&&wrap){const img=document.createElement('img');img.className='top-logo';img.alt=b?.property_name||'Property Logo';img.src=url;img.onerror=()=>{wrap.textContent='SECUREOPS'};wrap.replaceWith(img);}
+ }catch(e){}
+}
+loadPropertyBranding();
 async function enter(s){session=s;try{const me=await api('me');$('userName').textContent=me.profile?.full_name||s.user.email;$('userRole').textContent=me.profile?.role||'ADMIN';$('sessionGate').classList.add('hidden');$('app').classList.remove('hidden');await boot()}catch(e){console.error('Emergency bootstrap failed:',e);await sb.auth.signOut();location.href='../admin/'}}
 async function initAuth(){const {data,error}=await sb.auth.getSession();if(error||!data.session){location.href='../admin/';return}await enter(data.session)}
 $('logout').onclick=async()=>{await sb.auth.signOut();location.href='../admin/'};
