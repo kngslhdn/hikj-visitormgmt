@@ -1,0 +1,20 @@
+-- P1 data-integrity hardening: property ownership is mandatory for operational records.
+alter table public.visitors alter column property_id set not null;
+alter table public.submissions alter column property_id set not null;
+alter table public.visitor_entries alter column property_id set not null;
+alter table public.visitor_exits alter column property_id set not null;
+alter table public.key_assets alter column property_id set not null;
+alter table public.key_borrowings alter column property_id set not null;
+alter table public.key_returns alter column property_id set not null;
+alter table public.package_registrations alter column property_id set not null;
+alter table public.package_distributions alter column property_id set not null;
+alter table public.emergency_incident_types alter column property_id set not null;
+alter table public.emergency_contact_groups alter column property_id set not null;
+alter table public.emergency_contacts alter column property_id set not null;
+alter table public.emergency_group_members alter column property_id set not null;
+alter table public.emergency_incident_recipients alter column property_id set not null;
+alter table public.emergency_incident_updates alter column property_id set not null;
+alter table public.emergency_incidents alter column property_id set not null;
+alter table public.emergency_message_templates alter column property_id set not null;
+alter table public.emergency_notifications alter column property_id set not null;
+alter table public.emergency_acknowledgements alter column property_id set not null;
