@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
+<script src="../app-config.js"></script>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>SECUREOPS Emergency Response</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -114,11 +115,12 @@ main{max-width:1700px;margin:0 auto;padding:28px 30px 34px}.hero{display:flex;ju
   .top-user span{font-size:7px}
 }@media(max-width:850px){.grid{grid-template-columns:1fr}.fields{grid-template-columns:1fr}.stats{grid-template-columns:1fr 1fr}.hero{align-items:flex-start;flex-direction:column}.sev{grid-template-columns:1fr 1fr}}
 </style>
+<script>(function(){document.querySelectorAll('[data-app-version]').forEach(function(el){el.textContent=window.SECUREOPS_APP_VERSION||'';});})();</script>
 </head>
 <body>
 <section id="sessionGate" class="login" aria-hidden="true"><div class="login-card">
 <div class="secureops-logo" aria-label="SECUREOPS">SECUREOPS</div>
-<div class="login-brand">SECUREOPS<small>EMERGENCY NOTIFICATION SYSTEM • ks.v.001</small></div>
+<div class="login-brand">SECUREOPS<small>EMERGENCY NOTIFICATION SYSTEM • <span class="app-version" data-app-version></span></small></div>
 <h1>Opening Emergency Operations…</h1><p>Using your existing SECUREOPS Admin Console session.</p>
 </div></section>
 <section id="app">
