@@ -77,7 +77,13 @@ async function uploadPackagePhoto(dataUrl:string){
 }
 
 Deno.serve(async req=>{
- if(req.method==='OPTIONS')return new Response(null,{status:204,headers:cors});if(req.method!=='POST')return json({error:'Method not allowed'},405);const limit=rateLimit(req);if(!limit.allowed)return new Response(JSON.stringify({error:'Too many requests. Please wait and try again.'}),{status:429,headers:{...cors,'Content-Type':'application/json','Retry-After':String(limit.retryAfter)}});
+ if(req.method==='OPTIONS')return new Response(null,{status:204,headers:cors});
+ if(req.method==='GET'){
+   const {data,error}=await supabase.from('properties').select('property_code,property_name,logo_url,primary_color,secondary_color').eq('id',HIKJ_PROPERTY_ID).eq('is_active',true).maybeSingle();
+   if(error)return json({error:'Unable to load property branding'},500);
+   return json({ok:true,branding:data||null});
+ }
+ if(req.method!=='POST')return json({error:'Method not allowed'},405);const limit=rateLimit(req);if(!limit.allowed)return new Response(JSON.stringify({error:'Too many requests. Please wait and try again.'}),{status:429,headers:{...cors,'Content-Type':'application/json','Retry-After':String(limit.retryAfter)}});
  try{
   const contentLength=Number(req.headers.get('content-length')||0);if(contentLength>8*1024*1024)return json({error:'Request payload is too large.'},413);
   const body=await req.json();const rawType=clean(body.type||body.form_type),type=types[rawType]||rawType;if(!['visitor_entry','visitor_exit','key_borrowing','key_return','package_registration','key_asset_lookup'].includes(type))return json({error:'Invalid submission type'},400);const settings=await publicSettings();const ops=settings.operations||{};const enabledByType:Record<string,string>={visitor_entry:'visitor_entry_enabled',visitor_exit:'visitor_exit_enabled',key_borrowing:'key_borrowing_enabled',key_return:'key_return_enabled',package_registration:'package_registration_enabled'};if(enabledByType[type]&&ops[enabledByType[type]]===false)return json({error:'This service is currently disabled by Security Administration.'},403);
