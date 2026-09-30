@@ -25,14 +25,20 @@ async function authorize(req: Request) {
   const token = auth.slice(7);
   const { data: { user }, error } = await sb.auth.getUser(token);
   if (error || !user) return false;
-  const { data: profile } = await sb.from('admin_profiles').select('role,active').eq('user_id', user.id).maybeSingle();
-  return !!profile?.active && ['ADMIN','MANAGER','SUPERADMIN'].includes(String(profile.role || '').toUpperCase());
+  const { data: profile } = await sb.from('admin_profiles').select('role,active,property_id').eq('user_id', user.id).maybeSingle();
+  const role=String(profile?.role||'').toUpperCase();
+  if(!profile?.active || !['ADMIN','MANAGER','SUPERADMIN'].includes(role)) return false;
+  if(role!=='SUPERADMIN'&&!profile.property_id) return false;
+  const db=createClient(SUPABASE_URL,Deno.env.get('SUPABASE_ANON_KEY')||Deno.env.get('SUPABASE_PUBLISHABLE_KEY')!,{global:{headers:{Authorization:`Bearer ${token}`}},auth:{persistSession:false,autoRefreshToken:false}});
+  return {profile,db};
 }
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: headers(req) });
   if (req.method !== 'GET') return json(req, { error: 'Method not allowed' }, 405);
-  if (!(await authorize(req))) return json(req, { error: 'Unauthorized' }, 401);
+  const auth=await authorize(req);
+  if (!auth) return json(req, { error: 'Unauthorized' }, 401);
+  const {profile,db}=auth;
 
   try {
     const url = new URL(req.url);
@@ -42,8 +48,8 @@ Deno.serve(async (req: Request) => {
     const limit = Math.min(Math.max(Number(url.searchParams.get('limit') || 5000), 1), 5000);
 
     const [entriesResult, exitsResult] = await Promise.all([
-      sb.from('visitor_entries').select('id,submission_id,visitor_id,visitor_name_snapshot,phone_snapshot,company_name_snapshot,category_snapshot,visitor_name,visitor_phone,visitor_company_name,visitor_category,work_location,purpose,security_officer_name,pass_vest_number,entry_at,exit_id,visitors(full_name,phone,company_name,category)').order('entry_at', { ascending: false }).limit(5000),
-      sb.from('visitor_exits').select('id,submission_id,visitor_id,entry_id,visitor_name,company_name,pass_vest_number,security_officer_name,exit_at').order('exit_at', { ascending: false }).limit(5000)
+      db.from('visitor_entries').select('id,submission_id,visitor_id,visitor_name_snapshot,phone_snapshot,company_name_snapshot,category_snapshot,visitor_name,visitor_phone,visitor_company_name,visitor_category,work_location,purpose,security_officer_name,pass_vest_number,entry_at,exit_id,visitors(full_name,phone,company_name,category)').order('entry_at', { ascending: false }).limit(5000),
+      db.from('visitor_exits').select('id,submission_id,visitor_id,entry_id,visitor_name,company_name,pass_vest_number,security_officer_name,exit_at').order('exit_at', { ascending: false }).limit(5000)
     ]);
     if (entriesResult.error) throw entriesResult.error;
     if (exitsResult.error) throw exitsResult.error;
