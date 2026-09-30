@@ -1,0 +1,60 @@
+name: SECUREOPS QA
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  static-qa:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate repository hygiene
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e admin/dashboard-v2.js
+          test ! -e admin/dashboard-v2.css
+          test ! -e admin/admin-package-distribution.js
+
+      - name: Validate required SECUREOPS files
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f index.html
+          test -f admin/index.html
+          test -f admin/admin-console-v2.js
+          test -f admin/settings.js
+          test -f assets/secureops-config.js
+          test -d supabase/functions
+          test -d supabase/migrations
+
+      - name: Validate JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          find admin emergency assets supabase/functions -type f -name '*.js' -print0 |
+            while IFS= read -r -d '' f; do
+              node --check "$f"
+            done
+
+      - name: Validate migration SQL filenames
+        shell: bash
+        run: |
+          set -euo pipefail
+          find supabase/migrations -maxdepth 1 -type f -name '*.sql' -print0 |
+            while IFS= read -r -d '' f; do
+              base="$(basename "$f")"
+              [[ "$base" =~ ^[0-9]{14}_[a-zA-Z0-9_-]+\.sql$ ]] || {
+                echo "Invalid migration filename: $base"
+                exit 1
+              }
+            done
