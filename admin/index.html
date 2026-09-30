@@ -38,11 +38,11 @@
 <body>
 <section id="login" class="login hidden"><div class="login-card">
 <div class="logo-text" aria-label="SECUREOPS">SECUREOPS</div>
-<div class="brand">SECUREOPS<small>SECURITY ADMINISTRATION CONSOLE<br><span class="app-version" data-app-version></span></small></div>
+<div class="brand">SECUREOPS<small>SECURITY ADMINISTRATION CONSOLE<br><span class="app-version" data-app-version>ks.v.001</span></small></div>
 <h1>SECUREOPS Admin Sign In</h1><p>Authorized SECUREOPS administrators only</p>
 <form id="loginForm"><div class="field"><label>Email</label><input id="email" type="email" autocomplete="username" required></div><div class="field"><label>Password</label><input id="password" type="password" autocomplete="current-password" required></div><button id="loginBtn" class="login-btn" type="submit">SIGN IN</button><a class="back-form" href="../">← Back to Form</a><div id="loginError" class="error"></div></form>
 </div></section>
-<section id="app" class="hidden"><header class="top"><div class="top-title">SECUREOPS<small>SECURITY ADMIN CONSOLE<br><span class="app-version" data-app-version></span></small></div><div id="propertyBrand"><div class="top-logo-text" aria-label="SECUREOPS">SECUREOPS</div></div><div class="user"><div class="user-info"><b id="userName">Admin</b><small id="userRole">—</small></div></div></header><div class="actionbar"><div class="actionbar-inner"><a class="emergency-link" href="../emergency/">Emergency</a><button id="logout">Sign Out</button></div></div><div id="v2Boot" class="v2-loading">Loading Security Admin Console…</div></section>
+<section id="app" class="hidden"><header class="top"><div class="top-title">SECUREOPS<small>SECURITY ADMIN CONSOLE<br><span class="app-version" data-app-version>ks.v.001</span></small></div><div id="propertyBrand"><div class="top-logo-text" aria-label="SECUREOPS">SECUREOPS</div></div><div class="user"><div class="user-info"><b id="userName">Admin</b><small id="userRole">—</small></div></div></header><div class="actionbar"><div class="actionbar-inner"><a class="emergency-link" href="../emergency/">Emergency</a><button id="logout">Sign Out</button></div></div><div id="v2Boot" class="v2-loading">Loading Security Admin Console…</div></section>
 <script>
 const SUPABASE_URL=window.SECUREOPS_CONFIG.SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY=window.SECUREOPS_CONFIG.SUPABASE_PUBLISHABLE_KEY;
@@ -63,7 +63,7 @@ async function loadPublicBranding(){
   const logo=document.querySelector('#login .logo-text');
   if(logo){const img=document.createElement('img');img.className='logo';img.alt=b?.property_name||'Property Logo';img.src=url;img.onerror=()=>img.remove();logo.replaceWith(img);}
   const brand=document.querySelector('#login .brand');
-  if(brand&&b?.property_name)brand.innerHTML=escBrand(b.property_name)+'<small>SECURITY ADMIN CONSOLE<br><span class="app-version" data-app-version></span></small>';
+  if(brand&&b?.property_name)brand.innerHTML=escBrand(b.property_name)+'<small>SECURITY ADMIN CONSOLE<br><span class="app-version" data-app-version>ks.v.001</span></small>';
  }catch(e){}
 }
 function escBrand(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));}
