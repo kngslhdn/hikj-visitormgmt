@@ -18,10 +18,12 @@ async function requireAdmin(req: Request) {
   if (!token) throw new Error("Unauthorized");
   const { data, error } = await sb.auth.getUser(token);
   if (error || !data.user) throw new Error("Unauthorized");
-  const { data: profile, error: profileError } = await sb.from("admin_profiles").select("user_id,active,role").eq("user_id", data.user.id).eq("active", true).maybeSingle();
+  const { data: profile, error: profileError } = await sb.from("admin_profiles").select("user_id,active,role,property_id").eq("user_id", data.user.id).eq("active", true).maybeSingle();
   const role = String(profile?.role || "").toUpperCase();
   if (profileError || !profile || !["ADMIN", "MANAGER", "SUPERADMIN"].includes(role)) throw new Error("Forbidden");
-  return data.user;
+  if (role !== "SUPERADMIN" && !profile.property_id) throw new Error("Property assignment required");
+  const db = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!, { global: { headers: { Authorization: `Bearer ${token}` } }, auth: { persistSession: false, autoRefreshToken: false } });
+  return { user: data.user, profile, db };
 }
 
 function isUuid(value: string) { return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value); }
@@ -29,26 +31,26 @@ function isUuid(value: string) { return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
   try {
-    await requireAdmin(req);
+    const { db } = await requireAdmin(req);
 
     if (req.method === "GET") {
       const url = new URL(req.url);
       const q = (url.searchParams.get("q") || "").trim();
-      let query = sb.from("package_registrations")
+      let query = db.from("package_registrations")
         .select("id,submission_id,courier_name,phone,company_name,item_type,item_count,recipient_type,recipient_name,security_officer_name,created_at")
         .order("created_at", { ascending: false }).limit(100);
 
-      const { data: distributed, error: de } = await sb.from("package_distributions").select("package_registration_id");
+      const { data: distributed, error: de } = await db.from("package_distributions").select("package_registration_id");
       if (de) throw de;
       const distributedIds = (distributed || []).map((r) => r.package_registration_id);
       if (distributedIds.length) query = query.not("id", "in", `(${distributedIds.join(",")})`);
 
       if (isUuid(q)) {
-        const { data: exact } = await sb.from("package_registrations")
+        const { data: exact } = await db.from("package_registrations")
           .select("id,submission_id,courier_name,phone,company_name,item_type,item_count,recipient_type,recipient_name,security_officer_name,created_at")
           .eq("submission_id", q).maybeSingle();
         if (exact && !distributedIds.includes(exact.id)) {
-          const { data: sub } = await sb.from("submissions").select("submission_id").eq("id", exact.submission_id).maybeSingle();
+          const { data: sub } = await db.from("submissions").select("submission_id").eq("id", exact.submission_id).maybeSingle();
           const publicId = sub?.submission_id || exact.submission_id;
           return json({ packages: [{ ...exact, submission_id: publicId, package_number: publicId, status: "READY FOR DISTRIBUTION" }] });
         }
@@ -60,7 +62,7 @@ Deno.serve(async (req) => {
       const submissionIds = rows.map((p) => p.submission_id).filter(Boolean);
       const publicMap = new Map<string, string>();
       if (submissionIds.length) {
-        const { data: subs, error: se } = await sb.from("submissions").select("id,submission_id").in("id", submissionIds);
+        const { data: subs, error: se } = await db.from("submissions").select("id,submission_id").in("id", submissionIds);
         if (se) return json({ error: se.message }, 400);
         for (const s of subs || []) publicMap.set(s.id, s.submission_id);
       }
@@ -92,14 +94,14 @@ Deno.serve(async (req) => {
       if (!securityHandOver) return json({ error: "Please enter Security Hand Over." }, 400);
       if (!recipientName) return json({ error: "Please enter Recipient / Representative Name." }, 400);
 
-      const { data: pkg, error: pkgError } = await sb.from("package_registrations").select("id,submission_id,recipient_name").eq("id", packageRegistrationId).maybeSingle();
+      const { data: pkg, error: pkgError } = await db.from("package_registrations").select("id,submission_id,recipient_name").eq("id", packageRegistrationId).maybeSingle();
       if (pkgError || !pkg) return json({ error: "Package not found." }, 404);
-      const { data: existing } = await sb.from("package_distributions").select("id").eq("package_registration_id", packageRegistrationId).maybeSingle();
+      const { data: existing } = await db.from("package_distributions").select("id").eq("package_registration_id", packageRegistrationId).maybeSingle();
       if (existing) return json({ error: "Package has already been distributed." }, 409);
 
-      const { data: pkgSubmission, error: pkgSubmissionError } = await sb.from("submissions").select("submission_id").eq("id", pkg.submission_id).maybeSingle();
+      const { data: pkgSubmission, error: pkgSubmissionError } = await db.from("submissions").select("submission_id").eq("id", pkg.submission_id).maybeSingle();
       if (pkgSubmissionError || !pkgSubmission) return json({ error: "Package submission record not found." }, 500);
-      const { data: distribution, error: insertError } = await sb.from("package_distributions").insert({
+      const { data: distribution, error: insertError } = await db.from("package_distributions").insert({
         package_registration_id: pkg.id,
         package_number: pkgSubmission.submission_id,
         registered_recipient_name: pkg.recipient_name,
