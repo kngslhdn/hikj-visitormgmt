@@ -3,7 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const cors = {'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization, x-client-info, apikey, content-type, idempotency-key','Access-Control-Allow-Methods':'POST, OPTIONS'};
 const supabase=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 const HIKJ_PROPERTY_ID='9ca8c398-c376-4d7a-8b74-91a8ffb771e7';
-const propertyQuery=(table:string)=>supabase.from(table);
+const propertyQuery=(table:string)=>supabase.from(table).eq('property_id',HIKJ_PROPERTY_ID);
 async function outstandingKey(key:string){
  const {data,error}=await propertyQuery('key_borrowings').select('id,borrower_name,quantity').eq('key_number',key).order('borrowed_at',{ascending:false}).limit(20);
  if(error)throw error;
